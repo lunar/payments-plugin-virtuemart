@@ -1,12 +1,9 @@
 <?php
 
 defined ('_JEXEC') or die('Restricted access');
-if ( ! class_exists(  'Lunar\\Client' ) ) {
-	include_once( __DIR__ .'/lib/Client.php' );
-}
-if ( ! class_exists( 'LunarCurrency' ) ) {
-	include_once( __DIR__ .'/lib/LunarCurrency.php' );
-}
+// if ( ! class_exists(  'Lunar\\Client' ) ) {
+// 	include_once( __DIR__ .'/lib/Client.php' );
+// }
 if ( ! class_exists( 'vmPSPlugin' ) ) {
 	require( JPATH_VM_PLUGINS . DS . 'vmpsplugin.php' );
 }
