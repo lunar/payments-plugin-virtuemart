@@ -11,13 +11,14 @@ if ( ! class_exists( 'vmPSPlugin' ) ) {
 	require( JPATH_VM_PLUGINS . DS . 'vmpsplugin.php' );
 }
 /**
- * lunar payment plugin
  * @package VirtueMart
  * @subpackage payment
  * @license http://www.gnu.org/copyleft/gpl.html GNU/GPL
  */
 
 use Joomla\CMS\Factory;
+use Joomla\CMS\Version;
+use Joomla\CMS\Router\Route;
 
 class plgVmPaymentLunar extends vmPSPlugin {
 
@@ -38,26 +39,6 @@ class plgVmPaymentLunar extends vmPSPlugin {
 		$this->setConvertable(array('min_amount','max_amount','cost_per_transaction','cost_min_transaction'));
 		$this->setConvertDecimal(array('min_amount','max_amount','cost_per_transaction','cost_min_transaction','cost_percent_total'));
 
-		/**
-		 * Hide test fields from view when not debug mode.
-		 */
-		/** Get payment id from database. */
-		$db   = Factory::getDbo();
-		$prefix = $db->getPrefix();
-		$query = "SELECT * FROM " . $prefix . "virtuemart_paymentmethods WHERE payment_element LIKE '%lunar%'";
-		$result = $db->setQuery($query)->execute()->fetch_array();
-		$extensionId = $result['virtuemart_paymentmethod_id'];
-
-		if (!isset($_GET['debug']) && $_GET['cid'][0] == $extensionId) {
-			$document = Factory::getDocument();
-			$document->addScriptDeclaration('
-				jQuery().ready(() => {
-					jQuery("#params_test_mode").closest(".control-group").hide();
-					jQuery("#params_test_api_key").closest(".control-group").hide();
-					jQuery("#params_test_public_key").closest(".control-group").hide();
-				});
-			');
-		}
 	}
 
 	/**
@@ -88,7 +69,7 @@ class plgVmPaymentLunar extends vmPSPlugin {
 			'cost_min_transaction'        => 'decimal(10,2)',
 			'cost_percent_total'          => 'decimal(10,2)',
 			'tax_id'                      => 'smallint(1)',
-			'lunar_data'                => 'varchar(65000)'
+			'lunar_data'                  => 'text(65000)'
 
 		);
 
@@ -119,12 +100,18 @@ class plgVmPaymentLunar extends vmPSPlugin {
 
 		$orderTotal = $order['details']['BT']->order_total;
 		$price = vmPSPlugin::getAmountValueInCurrency($orderTotal, $method->payment_currency);
-		$currency = shopFunctions::getCurrencyByID($method->payment_currency, 'currency_code_3');
+
+		$currency = $method->payment_currency;
+		// backward compatibility
+		if (is_numeric($method->payment_currency)) {
+			$currency = shopFunctions::getCurrencyByID($method->payment_currency, 'currency_code_3');
+		}
+
 		$precision = $lunarCurrency->getLunarCurrency($currency)['exponent'] ?? 2;
 		$priceInCents = (int) ceil( round($price * $lunarCurrency->getLunarCurrencyMultiplier($currency), $precision));
 
 		if (!empty($method->payment_info)) {
-			$lang = JFactory::getLanguage ();
+			$lang = Factory::getLanguage ();
 			if ($lang->hasKey ($method->payment_info)) {
 				$method->payment_info = vmText::_ ($method->payment_info);
 			}
@@ -134,7 +121,7 @@ class plgVmPaymentLunar extends vmPSPlugin {
 
 		//verify the session
 		if($method->checkout_mode === 'before') {
-			$session = JFactory::getSession();
+			$session = Factory::getSession();
 			$transactionId = $session->get( 'lunar.transactionId','');
 			$hasError = true;
 			if($transactionId) {
@@ -151,8 +138,10 @@ class plgVmPaymentLunar extends vmPSPlugin {
 			// return to cart and don't save transaction values, if we don't get the right values;
 			if($hasError) {
 				$msg = 'Lunar Transaction not found '.$transactionId;
-				$app = JFactory::getApplication();
-				$app->redirect(JRoute::_('index.php?option=com_virtuemart&view=cart'), $msg);
+				$app = Factory::getApplication();
+				$app->enqueueMessage($msg, 'error');
+				$app->redirect(Route::_('index.php?option=com_virtuemart&view=cart'), 301);
+				return;
 			}
 		}
 
@@ -218,7 +207,7 @@ class plgVmPaymentLunar extends vmPSPlugin {
 			 * Add the additional info here
 			 */
 			if ($method->capture_mode === 'instant') {
-				$date = JFactory::getDate();
+				$date = Factory::getDate();
 				$today = $date->toSQL();
 				$order['paid_on'] = $today;
 				$order['paid'] = $orderTotal;
@@ -327,6 +316,9 @@ class plgVmPaymentLunar extends vmPSPlugin {
 	}
 
 	/**
+	 * Virtuemart V4 word case changed
+	 * @see https://virtuemart.net/news/506-virtuemart-4
+	 *
 	 * Calculate the price (value, tax_id) of the selected method
 	 * It is called by the calculator
 	 * This function does NOT to be reimplemented. If not reimplemented, then the default values from this function are taken.
@@ -335,7 +327,7 @@ class plgVmPaymentLunar extends vmPSPlugin {
 	 * @return null if the method was not selected, false if the shiiping rate is not valid any more, true otherwise
 	 *
 	 */
-	public function plgVmonSelectedCalculatePricePayment (VirtueMartCart $cart, array &$cart_prices, &$cart_prices_name) {
+	public function plgVmOnSelectedCalculatePricePayment (VirtueMartCart $cart, array &$cart_prices, &$cart_prices_name) {
 
 		return $this->onSelectedCalculatePrice ($cart, $cart_prices, $cart_prices_name);
 	}
@@ -353,7 +345,13 @@ class plgVmPaymentLunar extends vmPSPlugin {
 		}
 		$this->getPaymentCurrency ($method);
 
-		$paymentCurrencyId = $method->payment_currency;
+		// backward compatibility
+		if (is_numeric($method->payment_currency)) {
+			$paymentCurrencyId = $method->payment_currency;
+		} else {
+			$paymentCurrencyId = shopFunctions::getCurrencyIDByName($method->payment_currency);
+		}
+
 		return;
 	}
 
@@ -409,7 +407,8 @@ class plgVmPaymentLunar extends vmPSPlugin {
 
 	/**
 	 * @param $virtuemart_paymentmethod_id
-	 * @param $paymentCurrencyId
+	 * @param $virtuemart_order_id
+	 * @param $emailCurrencyId
 	 * @return bool|null
 	 */
 	function plgVmgetEmailCurrency($virtuemart_paymentmethod_id, $virtuemart_order_id, &$emailCurrencyId) {
@@ -503,9 +502,8 @@ class plgVmPaymentLunar extends vmPSPlugin {
 
 	/* get current joomla version */
 	function getJoomlaVersions() {
-		jimport('joomla.version');
-		$version = new JVersion();
-		return $version->RELEASE;
+		$version = new Version();
+		return $version->getShortVersion();
 	}
 
 	/* get current Virtuemart version */
@@ -565,7 +563,13 @@ class plgVmPaymentLunar extends vmPSPlugin {
 
 					$orderTotal = $details->order_total;
 					$price = vmPSPlugin::getAmountValueInCurrency($orderTotal, $method->payment_currency);
-					$currency = shopFunctions::getCurrencyByID($method->payment_currency, 'currency_code_3');
+
+					$currency = $method->payment_currency;
+					// backward compatibility
+					if (is_numeric($method->payment_currency)) {
+						$currency = shopFunctions::getCurrencyByID($method->payment_currency, 'currency_code_3');
+					}
+
 					$precision = $lunarCurrency->getLunarCurrency($currency)['exponent'] ?? 2;
 					$priceInCents = (int) ceil( round($price * $lunarCurrency->getLunarCurrencyMultiplier($currency), $precision));
 
@@ -589,7 +593,7 @@ class plgVmPaymentLunar extends vmPSPlugin {
 						 * Add the additional info here
 						 */
 						if ($method->capture_mode === 'instant') {
-							$date = JFactory::getDate();
+							$date = Factory::getDate();
 							$today = $date->toSQL();
 							$order['paid_on'] = $today;
 							$order['paid'] = $orderTotal;
@@ -611,7 +615,7 @@ class plgVmPaymentLunar extends vmPSPlugin {
 			}
 		} else {
 			$task = vRequest::get('lunarTask');
-			$session = JFactory::getSession();
+			$session = Factory::getSession();
 			if($task === 'cartData') {
 
 				$lunarID = uniqid('lunar_');
@@ -624,11 +628,17 @@ class plgVmPaymentLunar extends vmPSPlugin {
 
 				$orderTotal = $cart->cartPrices['billTotal'];
 				$price = vmPSPlugin::getAmountValueInCurrency($orderTotal, $method->payment_currency);
-				$currency = shopFunctions::getCurrencyByID($method->payment_currency, 'currency_code_3');
+
+				$currency = $method->payment_currency;
+				// backward compatibility
+				if (is_numeric($method->payment_currency)) {
+					$currency = shopFunctions::getCurrencyByID($method->payment_currency, 'currency_code_3');
+				}
+
 				$precision = $lunarCurrency->getLunarCurrency($currency)['exponent'] ?? 2;
 				$priceInCents = (int) ceil( round($price * $lunarCurrency->getLunarCurrencyMultiplier($currency), $precision));
 
-				$lang = JFactory::getLanguage();
+				$lang = Factory::getLanguage();
 				$languages = JLanguageHelper::getLanguages( 'lang_code' );
 				$locale = $languages[ $lang->getTag() ]->sef;
 				$json->publicKey = $this->publicKey;
@@ -671,7 +681,7 @@ class plgVmPaymentLunar extends vmPSPlugin {
 				}
 			}
 		}
-		$jAp = JFactory::getApplication();
+		$jAp = Factory::getApplication();
 		$json->JoomMsg = $jAp->getMessageQueue();
 		echo json_encode($json);
 		jexit();
@@ -684,7 +694,7 @@ class plgVmPaymentLunar extends vmPSPlugin {
 			$data = new stdClass();
 			$data->lunar_data = $transactionId;
 			$data->virtuemart_order_id = $orderid;
-			$db	= JFactory::getDBO();
+			$db	= Factory::getDBO();
 			$db->updateObject($this->_tablename, $data, 'virtuemart_order_id');
 	}
 

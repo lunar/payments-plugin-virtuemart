@@ -2,7 +2,6 @@
 defined ('_JEXEC') or die();
 
 /**
- * lunar payment plugin
  * @package VirtueMart
  * @subpackage payment
  * @license http://www.gnu.org/copyleft/gpl.html GNU/GPL
@@ -13,18 +12,25 @@ $billingDetail = $viewData["billingDetails"];
 $lunarCurrency = new LunarCurrency();
 $this->getPaymentCurrency( $method );
 
+$orderTotal = $billingDetail->order_total;
 $price = vmPSPlugin::getAmountValueInCurrency($orderTotal, $method->payment_currency);
-$currency = shopFunctions::getCurrencyByID($method->payment_currency, 'currency_code_3');
+
+$currency = $method->payment_currency;
+// backward compatibility
+if (is_numeric($method->payment_currency)) {
+	$currency = shopFunctions::getCurrencyByID($method->payment_currency, 'currency_code_3');
+}
+
 $precision = $lunarCurrency->getLunarCurrency($currency)['exponent'] ?? 2;
 $priceInCents = (int) ceil( round($price * $lunarCurrency->getLunarCurrencyMultiplier($currency), $precision));
 
-$lang = JFactory::getLanguage();
+$lang = Factory::getLanguage();
 $languages = JLanguageHelper::getLanguages( 'lang_code' );
 $languageCode = $languages[ $lang->getTag() ]->sef;
 
 $data = new stdClass;
 
-$session = JFactory::getSession();
+$session = Factory::getSession();
 $lunarID = uniqid('lunar_');
 $session->set( 'lunar.uniqid', $lunarID);
 $data->lunarID = $lunarID; // this is session ID to secure the transaction, it's fetch after to validate
@@ -32,8 +38,8 @@ $data->lunarID = $lunarID; // this is session ID to secure the transaction, it's
 $data->publicKey = $this->setKey($method);
 $data->testMode = $method->test_mode;
 
-$data->popup_title = jText::_($method->popup_title);
-$data->description = jText::_($method->description);
+$data->popup_title = JText::_($method->popup_title);
+$data->description = JText::_($method->description);
 $data->orderId = $billingDetail->virtuemart_order_id;
 $data->virtuemart_paymentmethod_id = $billingDetail->virtuemart_paymentmethod_id;
 $data->orderNo = $billingDetail->order_number;
@@ -104,7 +110,7 @@ if($viewData["orderlink"]){
 ?>
 </div>
 <script>
-jQuery(document).ready(function($) {
+jQuery(document).ready(function() {
 	var datas = <?php echo json_encode($data) ?>;
 
 	var publicKey = {
@@ -113,7 +119,7 @@ jQuery(document).ready(function($) {
 
 	lunar = Paylike({key: datas.publicKey});
 
-	$('#lunar-pay').on('click',function(){
+	jQuery('#lunar-pay').on('click',function(){
 		pay();
 	});
 	function pay(){
@@ -145,15 +151,15 @@ jQuery(document).ready(function($) {
 							'virtuemart_paymentmethod_id' : datas.virtuemart_paymentmethod_id,
 							'format' : 'json'
 						};
-					$.ajax({
+					jQuery.ajax({
 						type: "POST",
 						url: datas.ajaxUrl,
 						async: false,
 						data: payData,
 						success: function(data) {
 							if(data.success =='1') {
-								$('#lunar-after-info').toggleClass('lunar-info-hide');
-								$('#lunar-temp-info').remove();
+								jQuery('#lunar-after-info').toggleClass('lunar-info-hide');
+								jQuery('#lunar-temp-info').remove();
 							} else {
 								alert(data.error);
 								//callback(r,datas);
