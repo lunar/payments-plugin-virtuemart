@@ -1,0 +1,24 @@
+{
+  "name": "lunar/payments-api-sdk",
+  "description": "PHP SDK to communicate with the Lunar HTTP API",
+  "version": "1.0.0",
+  "license": "MIT",
+  "minimum-stability": "dev",
+  "autoload": {
+    "psr-4": {
+      "Lunar\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Lunar\\Tests\\": "tests/"
+    }
+  },
+  "require": {
+    "php": ">=7.1",
+    "ext-curl": "*"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^9.6.3"
+  }
+}

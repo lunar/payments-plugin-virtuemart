@@ -1,0 +1,48 @@
+{
+    "packages": [
+        {
+            "name": "lunar/payments-api-sdk",
+            "version": "dev-master",
+            "version_normalized": "dev-master",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/lunar/payments-api-sdk.git",
+                "reference": "36436f5181dbeb0fdb3bd77b6c040c7a7abcc366"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/lunar/payments-api-sdk/zipball/36436f5181dbeb0fdb3bd77b6c040c7a7abcc366",
+                "reference": "36436f5181dbeb0fdb3bd77b6c040c7a7abcc366",
+                "shasum": ""
+            },
+            "require": {
+                "ext-curl": "*",
+                "php": ">=7.1"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^9.6.3"
+            },
+            "time": "2023-10-11T13:02:02+00:00",
+            "default-branch": true,
+            "type": "library",
+            "installation-source": "dist",
+            "autoload": {
+                "psr-4": {
+                    "Lunar\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "description": "PHP SDK to communicate with the Lunar HTTP API",
+            "support": {
+                "issues": "https://github.com/lunar/payments-api-sdk/issues",
+                "source": "https://github.com/lunar/payments-api-sdk/tree/master"
+            },
+            "install-path": "../lunar/payments-api-sdk"
+        }
+    ],
+    "dev": true,
+    "dev-package-names": []
+}

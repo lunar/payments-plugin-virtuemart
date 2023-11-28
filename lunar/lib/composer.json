@@ -1,0 +1,22 @@
+{
+  "name": "lunar/payments-plugin-virtuemart",
+  "description": "Lunar Online Payments for Virtuemart",
+  "version": "2.0.0",
+  "license": [
+      "MIT"
+  ],
+  "authors": [
+    {
+      "name": "Lunar",
+      "email": "support@lunar.app"
+    }
+  ],
+  "autoload": {
+    "psr-4": {
+      "Lunar\\Payment\\": ""
+    }
+  },
+  "require": {
+    "lunar/payments-api-sdk": "dev-master"
+  }
+}
