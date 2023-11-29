@@ -1,12 +1,6 @@
 <?php
  defined('_JEXEC') or die('Restricted access');
 
-/**
- * @package VirtueMart
- * @subpackage payment
- * @license http://www.gnu.org/copyleft/gpl.html GNU/GPL
- */
-
 if ( ! class_exists(  'Lunar\\Lunar')) {
 	include_once( __DIR__ .'/lib/vendor/autoload.php');
 }
@@ -19,16 +13,21 @@ use Joomla\CMS\Factory;
 use Joomla\CMS\Version;
 use Joomla\CMS\Router\Route;
 
+use Lunar\Lunar as ApiClient;
+
 class plgVmPaymentLunar extends vmPSPlugin {
 
 	public $version = '1.0.0';
-	static $IDS = array();
-	protected $_isInList = false;
-	function __construct(& $subject, $config) {
+	public $app;
+	private $apiClient;
 
+	static $IDS = array();
+
+	protected $_isInList = false;
+
+	public function __construct(& $subject, $config) {
 		parent::__construct($subject, $config);
 		// vmdebug('Plugin stuff',$subject, $config);
-
 		$this->_loggable = true;
 		$this->tableFields = array_keys($this->getTableSQLFields());
 		$this->_tablepkey = 'id';
@@ -38,7 +37,8 @@ class plgVmPaymentLunar extends vmPSPlugin {
 		$this->setConfigParameterable($this->_configTableFieldName, $varsToPush);
 		$this->setConvertable(array('min_amount','max_amount','cost_per_transaction','cost_min_transaction'));
 		$this->setConvertDecimal(array('min_amount','max_amount','cost_per_transaction','cost_min_transaction','cost_percent_total'));
-
+		
+		$this->app = Factory::getApplication();
 	}
 
 	/**
@@ -76,6 +76,12 @@ class plgVmPaymentLunar extends vmPSPlugin {
 		return $SQLfields;
 	}
 
+	private function setApiClient($method) {
+		$test = !!$this->app->input->cookie->get('lunar_testmode'); // same with !!$_COOKIE['lunar_testmode']
+		$this->apiClient = new ApiClient($method->api_key, null, $test);
+		// $this->publicKey = $method->public_key;
+	}
+
 	/**
 	 * This function is triggered when the user click on the Confirm Purchase button on cart view.
      * You can store the transaction/order related details using this function.
@@ -89,24 +95,21 @@ class plgVmPaymentLunar extends vmPSPlugin {
 		if (!$this->selectedThisElement($method->payment_element)) {
 			return false;
 		}
-
+// file_put_contents(dirname(__DIR__, 2) . "/zzz.log", json_encode(__METHOD__, JSON_PRETTY_PRINT) . PHP_EOL, FILE_APPEND);
 		vmLanguage::loadJLang('com_virtuemart', true);
 		vmLanguage::loadJLang('com_virtuemart_orders', true);
 
 		$this->getPaymentCurrency($method);
 
+		$currencyId = $this->getCurrencyId($method);
+		
 		$emailCurrencyId = $this->getEmailCurrency($method);
 		$emailCurrency = shopFunctions::getCurrencyByID($emailCurrencyId, 'currency_code_3');
 
-		$lunarCurrency = new LunarCurrency();
-
 		$orderTotal = $order['details']['BT']->order_total;
-		$price = vmPSPlugin::getAmountValueInCurrency($orderTotal, $method->payment_currency);
+		$price = vmPSPlugin::getAmountValueInCurrency($orderTotal, $currencyId);
 
 		$currency = $this->getCurrencyCode($method);
-
-		$precision = $lunarCurrency->getLunarCurrency($currency)['exponent'] ?? 2;
-		$priceInCents =(int) ceil( round($price * $lunarCurrency->getLunarCurrencyMultiplier($currency), $precision));
 
 		if (!empty($method->payment_info)) {
 			$lang = Factory::getLanguage();
@@ -117,28 +120,24 @@ class plgVmPaymentLunar extends vmPSPlugin {
 
 		$transactionId ='';
 
-		//verify the session
 		if ($method->checkout_mode === 'before') {
-			$session = Factory::getSession();
-			$transactionId = $session->get( 'lunar.transactionId','');
 			$hasError = true;
 			if ($transactionId) {
-				$this->setKey($method);
+				$this->setApiClient($method);
 				// verify transaction amount + currency
-				$response = \Lunar\Transaction::fetch( $transactionId);
-				$transactionAmount =(int)$response['transaction']['amount'];
-				$transactionCurrency = $response['transaction']['currency'];
+				$response = $this->apiClient->payments()->fetch( $transactionId);
+				$transactionAmount = $response['amount']['decimal'];
+				$transactionCurrency = $response['amount']['currency'];
 
-				if ($transactionAmount == $priceInCents && $transactionCurrency == $currency) {
+				if ($transactionAmount == $orderTotal && $transactionCurrency == $currency) {
 					$hasError = false;
 				}
 			}
 			// return to cart and don't save transaction values, if we don't get the right values;
 			if ($hasError) {
 				$msg = 'Lunar Transaction not found '.$transactionId;
-				$app = Factory::getApplication();
-				$app->enqueueMessage($msg, 'error');
-				$app->redirect(Route::_('index.php?option=com_virtuemart&view=cart'), 301);
+				$this->app->enqueueMessage($msg, 'error');
+				$this->app->redirect(Route::_('index.php?option=com_virtuemart&view=cart'), 301);
 				return;
 			}
 		}
@@ -153,7 +152,8 @@ class plgVmPaymentLunar extends vmPSPlugin {
 		$dbValues['email_currency'] = $emailCurrency;
 		$dbValues['payment_order_total'] = $price;
 		$dbValues['tax_id'] = $method->tax_id;
-		$dbValues['lunar_data'] = $transactionId;//before transaction has the ID
+		$dbValues['lunar_data'] = $transactionId;
+
 		$this->storePSPluginInternalData($dbValues);
 
 		$orderlink='';
@@ -167,29 +167,30 @@ class plgVmPaymentLunar extends vmPSPlugin {
 			}
 		}
 
-		$currencyInstance = CurrencyDisplay::getInstance($method->payment_currency, $order['details']['BT']->virtuemart_vendor_id);
+		$currencyInstance = CurrencyDisplay::getInstance($currencyId, $order['details']['BT']->virtuemart_vendor_id);
 		$priceDisplayWithCurrency = $price . ' ' . $currencyInstance->getSymbol();
 
 		//after-payment need specific render and scripts
 		if ($method->checkout_mode === 'after') {
 			$html = $this->renderByLayout('pay_after', array(
-				'method'=>$method,
-				'cart'=>$cart,
-				'billingDetails' =>$order['details']['BT'],
+				'method'=> $method,
+				'cart'=> $cart,
+				'billingDetails' => $order['details']['BT'],
 				'payment_name' => $dbValues['payment_name'],
 				'displayTotalInPaymentCurrency' => $priceDisplayWithCurrency,
-				'orderlink' =>$orderlink
+				'orderlink' => $orderlink
 			));
-		} else {
 
+		} else {
 			$html = $this->renderByLayout('order_done', array(
-				'method'=>$method,
-				'cart'=>$cart,
-				'billingDetails' =>$order['details']['BT'],
+				'method'=> $method,
+				'cart'=> $cart,
+				'billingDetails' => $order['details']['BT'],
 				'payment_name' => $dbValues['payment_name'],
 				'displayTotalInPaymentCurrency' => $priceDisplayWithCurrency,
-				'orderlink' =>$orderlink
+				'orderlink' => $orderlink
 			));
+
 			//before payment display
 			//We delete the cart content
 			$cart->emptyCart();
@@ -214,6 +215,7 @@ class plgVmPaymentLunar extends vmPSPlugin {
 			$modelOrder = VmModel::getModel('orders');
 			$modelOrder->updateStatusForOneOrder($details->virtuemart_order_id, $order, true);
 		}
+
 		vRequest::setVar('html', $html);
 		return true;
 
@@ -336,8 +338,7 @@ class plgVmPaymentLunar extends vmPSPlugin {
 	 * Calculate the price(value, tax_id) of the selected method
 	 * It is called by the calculator
 	 * This function does NOT to be reimplemented. If not reimplemented, then the default values from this function are taken.
-	 * @cart: VirtueMartCart the current cart
-	 * @cart_prices: array the new cart prices
+	 *
 	 * @return null if the method was not selected, false if the shipping rate is not valid any more, true otherwise
 	 *
 	 */
@@ -347,7 +348,7 @@ class plgVmPaymentLunar extends vmPSPlugin {
 	}
 
 	/**
-	 *
+	 * @TODO maybe we can refactor this to serve the purpose of "getCurrencyCode" method
 	 */
 	function plgVmgetPaymentCurrency($virtuemart_paymentmethod_id, &$paymentCurrencyId) {
 
@@ -359,12 +360,7 @@ class plgVmPaymentLunar extends vmPSPlugin {
 		}
 		$this->getPaymentCurrency($method);
 
-		// backward compatibility
-		if (is_numeric($method->payment_currency)) {
-			$paymentCurrencyId = $method->payment_currency;
-		} else {
-			$paymentCurrencyId = shopFunctions::getCurrencyIDByName($method->payment_currency);
-		}
+		$paymentCurrencyId = $this->getCurrencyId($method);
 
 		return;
 	}
@@ -495,10 +491,6 @@ class plgVmPaymentLunar extends vmPSPlugin {
 		$return .= "</div></div>";
 		$return .= '<div class="lunar_desc" >' . $plugin->description . '</div>';
 
-		if ( $plugin->test_mode == 1) {
-			$return .= '<div class="payment_box payment_method_lunar"><p>TEST MODE ENABLED. In test mode, you can use the card number 4100 0000 0000 0000 with any CVC and a valid expiration date. "<a href="https://github.com/paylike/sdk">See Documentation</a>".</p></div>';
-		}
-
 		$layout = vRequest::getCmd('layout', 'default');
 		$view = vRequest::getCmd('view', '');
 
@@ -512,19 +504,6 @@ class plgVmPaymentLunar extends vmPSPlugin {
 			plgVmPaymentLunar::$IDS[$plugin->virtuemart_paymentmethod_id] = true;
 		}
 		return $return;
-	}
-
-	function setKey($method) {
-		if ( $method->test_mode == 1) {
-			$privateKey = $method->test_api_key;
-			$publicKey = $method->test_public_key;
-		} else { // if live mode
-			$privateKey = $method->live_api_key;
-			$publicKey = $method->live_public_key;
-		}
-		\Lunar\Client::setKey( $privateKey); // set private key for further lunar functions
-		$this->publicKey = $publicKey;
-		return $publicKey;
 	}
 
 	/**
@@ -542,11 +521,16 @@ class plgVmPaymentLunar extends vmPSPlugin {
 	}
 
 	/**
-	 * 
+	 * @return int
 	 */
-	public static function onAjaxRedirect()
+	private function getCurrencyId($method)
 	{
-		return json_encode(vRequest::class);
+		// backward compatibility
+		if (is_numeric($method->payment_currency)) {
+			return $method->payment_currency;
+		} else {
+			return shopFunctions::getCurrencyIDByName($method->payment_currency);
+		}
 	}
 
 	/**
@@ -568,7 +552,7 @@ class plgVmPaymentLunar extends vmPSPlugin {
 		$json = new stdClass;
 		$json->error = '';
 		$json->success = '0';
-		$this->setKey( $method); // set private key for further lunar functions
+		$this->setApiClient( $method); // set private key for further lunar functions
 
 		if ($method->checkout_mode === 'after') {
 
@@ -587,7 +571,7 @@ class plgVmPaymentLunar extends vmPSPlugin {
 					$lunarCurrency = new LunarCurrency();
 
 					$orderTotal = $details->order_total;
-					$price = vmPSPlugin::getAmountValueInCurrency($orderTotal, $method->payment_currency);
+					$price = vmPSPlugin::getAmountValueInCurrency($orderTotal, $this->getCurrencyId($method));
 
 					$currency = $this->getCurrencyCode($method);
 
@@ -648,19 +632,13 @@ class plgVmPaymentLunar extends vmPSPlugin {
 				$this->getPaymentCurrency( $method);
 
 				$orderTotal = $cart->cartPrices['billTotal'];
-				$price = vmPSPlugin::getAmountValueInCurrency($orderTotal, $method->payment_currency);
+				$price = vmPSPlugin::getAmountValueInCurrency($orderTotal, $this->getCurrencyId($method));
 
 				$currency = $this->getCurrencyCode($method);
 
 				$precision = $lunarCurrency->getLunarCurrency($currency)['exponent'] ?? 2;
 				$priceInCents =(int) ceil( round($price * $lunarCurrency->getLunarCurrencyMultiplier($currency), $precision));
 
-				$lang = Factory::getLanguage();
-				$languages = JLanguageHelper::getLanguages( 'lang_code');
-				$locale = $languages[ $lang->getTag() ]->sef;
-				$json->publicKey = $this->publicKey;
-				$json->testMode = $method->test_mode;
-				$json->locale = $locale;
 				$json->currency = $currency;
 				$json->amount = $priceInCents;
 				$json->exponent = $lunarCurrency->getLunarCurrency($currency)['exponent'];
@@ -743,7 +721,7 @@ class plgVmPaymentLunar extends vmPSPlugin {
 			return null;
 		}
 
-		$this->setKey( $method);
+		$this->setApiClient( $method);
 		$transactionid = $paymentTable->lunar_data;
 		$response = \Lunar\Transaction::fetch( $transactionid);
 		vmdebug('Lunar Transaction::fetch',$response);
