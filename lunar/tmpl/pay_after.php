@@ -1,11 +1,6 @@
 <?php
 defined ('_JEXEC') or die();
 
-/**
- * @package VirtueMart
- * @subpackage payment
- * @license http://www.gnu.org/copyleft/gpl.html GNU/GPL
- */
 ?>
 
 <style>
@@ -38,30 +33,3 @@ defined ('_JEXEC') or die();
 <?php endif ?>
 
 </div>
-
-<script>
-jQuery(document).ready(function() {
-
-	jQuery('#lunar-pay').on('click',function(){
-		jQuery.ajax({
-			type: "POST",
-			url: 'index.php?option=com_ajax&plugin=redirect',
-			async: false,
-			data: payData,
-			dataType :'json',
-			success: function(response) {
-				if(response.success == '1') {
-					jQuery('#lunar-after-info').toggleClass('lunar-info-hide');
-					jQuery('#lunar-temp-info').remove();
-				} else {
-					alert(response.error);
-				}
-			},
-			error: function(error) {
-				alert(error);
-			}
-		});
-	});
-
-});
-</script>
