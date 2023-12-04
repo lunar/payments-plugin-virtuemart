@@ -165,4 +165,14 @@ trait LunarPluginTrait
 		return $this->setOnTablePluginParams($name, $id, $table);
 	}
 
+	/**
+	 * @return string
+	 */
+	public function getPluginVersion() 
+    {
+		$xmlStr = file_get_contents(dirname(__DIR__).'/lunar.xml');
+		$xmlObj = simplexml_load_string($xmlStr);
+		return (string) $xmlObj->version;
+	}
+
 }
