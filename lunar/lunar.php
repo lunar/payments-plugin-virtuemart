@@ -73,7 +73,7 @@ class plgVmPaymentLunar extends vmPSPlugin
 	{
 		$billingDetails = $order['details']['BT'];
 
-		if (!$this->getMethodById($billingDetails->virtuemart_paymentmethod_id)) {
+		if (!$this->checkMethodIsSelected($billingDetails->virtuemart_paymentmethod_id)) {
 			return false;
 		}
 
@@ -342,7 +342,7 @@ class plgVmPaymentLunar extends vmPSPlugin
 	 */
 	function plgVmgetPaymentCurrency($virtuemart_paymentmethod_id, &$paymentCurrencyId) {
 
-		if (!$this->getMethodById($virtuemart_paymentmethod_id)) {
+		if (!$this->checkMethodIsSelected($virtuemart_paymentmethod_id)) {
 			return;
 		}
 
@@ -354,7 +354,7 @@ class plgVmPaymentLunar extends vmPSPlugin
 	/**
 	 * 
 	 */
-	private function getMethodById($methodId)
+	private function checkMethodIsSelected($methodId)
 	{
 		$this->method = $this->getVmPluginMethod($methodId);
 
@@ -504,7 +504,7 @@ class plgVmPaymentLunar extends vmPSPlugin
 	 */
 	function plgVmOnUpdateOrderPayment( $order, $old_order_status) {
 
-		if (!$this->getMethodById($order->virtuemart_paymentmethod_id)) {
+		if (!$this->checkMethodIsSelected($order->virtuemart_paymentmethod_id)) {
 			return false;
 		}
 
