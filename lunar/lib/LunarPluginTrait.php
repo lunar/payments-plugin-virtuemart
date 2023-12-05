@@ -41,14 +41,6 @@ trait LunarPluginTrait
 		];
 	}
 
-	/**
-	 *  Used for many different purposes(Payment Capture, Refund, Half Refund and Void)
-	 */
-	public function plgVmOnSelfCallFE( $type, $name, &$render)
-    {
-        //
-	}
-
     /**
 	 * Create the table for this plugin if it does not yet exist.
 	 * This functions checks if the called plugin is active one.

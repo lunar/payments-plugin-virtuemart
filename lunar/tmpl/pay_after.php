@@ -8,7 +8,9 @@ defined ('_JEXEC') or die();
 </style>
 
 <div id="lunar-temp-info">
-	<button type="button" class="btn btn-success btn-large btn-lg" id="lunar-pay"><?php echo jText::_('LUNAR_BTN'); ?></button>
+	<a href="<?php echo $viewData['redirectUrl']; ?>" id="lunar-pay" type="button" class="btn btn-success btn-large btn-lg">
+		<?php echo jText::_('LUNAR_BTN'); ?>
+	</a>
 	<br>
 </div>
 <div id="lunar-after-info" class="lunar-info-hide">

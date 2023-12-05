@@ -36,6 +36,8 @@ class plgVmPaymentLunar extends vmPSPlugin
 	private string $currencyCode;
 	private string $totalAmount;
 	private string $emailCurrency;
+	private ?bool $check;
+	private $billingDetails;
 	private array $args = [];
 	private string $intentIdKey = '_lunar_intent_id';
 	private bool $testMode = false;
@@ -81,6 +83,56 @@ class plgVmPaymentLunar extends vmPSPlugin
 
 		$this->vmOrderModel = VmModel::getModel('orders');
 	}
+	
+	/**
+	 * Used for ajax actions
+	 */
+	public function plgVmOnSelfCallFE($type, $name, &$render)
+    {
+		if('redirect' == vRequest::getCmd('action')) {
+			if (!$this->checkMethodIsSelected(vRequest::getVar('pm'))) {
+				echo $this->getErrorResponse('Wrong payment method ID');
+				jexit();
+			}
+
+			$this->initializePayment();
+		}
+	}
+	
+	/**
+	 * Used for ajax actions
+	 */
+	private function initializePayment()
+    {
+		$this->init();
+
+		$this->setArgs();
+
+		$paymentIntentId = $this->getPaymentIntentCookie();
+
+		// check if retrieved payment intent is for the current cart/order
+		if ($paymentIntentId) {
+			$this->fetchApiTransaction($paymentIntentId);
+		} else {
+			try {
+				$paymentIntentId = $this->apiClient->payments()->create($this->args);
+				$this->setPaymentIntentCookie($paymentIntentId);
+			} catch(ApiException $e) {
+				echo $this->getErrorResponse($e->getMessage());
+				jexit();
+			}
+		}
+
+		if (!$paymentIntentId) {
+			echo $this->getErrorResponse('An error occurred creating payment intent. Please try again or contact system administrator.');
+			jexit();
+		}
+
+		echo json_encode([
+			'redirectUrl' => ($this->testMode ? self::TEST_REMOTE_URL : self::REMOTE_URL) . $paymentIntentId
+		]);
+		jexit();
+	}
 
 	/**
 	 * This function is triggered when the user click on the Confirm Purchase button on cart view.
@@ -89,43 +141,45 @@ class plgVmPaymentLunar extends vmPSPlugin
 	 */
 	public function plgVmConfirmedOrder($cart, $order)
 	{
-		$billingDetails = $order['details']['BT'];
+		$this->billingDetails = $order['details']['BT'];
 
 		if (!$this->checkMethodIsSelected($cart->virtuemart_paymentmethod_id)) {
-			return false;
+			return $this->check;
 		}
 
 		$this->init();
 
-		if ($this->method->checkout_mode === 'before') {
+		$this->setArgs($this->billingDetails->virtuemart_order_id);
+		
+		$paymentIntentId = $this->getPaymentIntentCookie();
 
-			$this->setArgs();
-
-			$paymentIntentId = $this->getPaymentIntentCookie();
-
-			// check if retrieved payment intent is for the current cart/order
-			if ($paymentIntentId) {
-				$this->fetchApiTransaction($paymentIntentId);
-			} else {
-				try {
-					$paymentIntentId = $this->apiClient->payments()->create($this->args);
-					$this->setPaymentIntentCookie($paymentIntentId);
-				} catch(ApiException $e) {
-					$this->redirectBackWithNotification($e->getMessage());
-				}
+		// check if retrieved payment intent is for the current cart/order
+		if ($paymentIntentId) {
+			$this->fetchApiTransaction($paymentIntentId);
+		} else {
+			try {
+				$paymentIntentId = $this->apiClient->payments()->create($this->args);
+				$this->setPaymentIntentCookie($paymentIntentId);
+			} catch(ApiException $e) {
+				$this->redirectBackWithNotification($e->getMessage());
 			}
-	
-			if (! $paymentIntentId) {
-				$this->redirectBackWithNotification('An error occurred creating payment intent. Please try again or contact system administrator.');
-			}
-
-			$redirectUrl = ($this->testMode ? self::TEST_REMOTE_URL : self::REMOTE_URL) . $paymentIntentId;
-			$this->app->redirect($redirectUrl);			
 		}
 
-		$this->storeDbLunarTransaction($paymentIntentId, $billingDetails);
+		if (! $paymentIntentId) {
+			$this->redirectBackWithNotification('An error occurred creating payment intent. Please try again or contact system administrator.');
+		}
 
-		$this->finalizeOrder($billingDetails);
+		$this->storeDbLunarTransaction($paymentIntentId);
+
+		vRequest::setVar('html', $this->renderByLayout('pay_after', [
+			'method'=> $this->method,
+			'cart'=> $this->cart,
+			'billingDetails' => $this->billingDetails,
+			'payment_name' => $this->renderPluginName($this->method),
+			'displayTotalInPaymentCurrency' => $this->getPriceWithCurrency(),
+			'orderlink' => $this->getOrderLink(),
+			'redirectUrl' => ($this->testMode ? self::TEST_REMOTE_URL : self::REMOTE_URL) . $paymentIntentId,
+		]));
 
 		return true;
 	}
@@ -143,11 +197,12 @@ class plgVmPaymentLunar extends vmPSPlugin
 		$methodId = vRequest::getVar('pm');
 
 		if (!$this->checkMethodIsSelected($methodId)) {
+			// return $this->check;
 			$this->redirectBackWithNotification('Bad payment method');
 		}
 
-		if (!($orderNumber || $paymentMethod)) {
-			$this->redirectBackWithNotification('No order Id or payment name provided.');
+		if (!$paymentMethod) {
+			$this->redirectBackWithNotification('No payment method name provided.');
 		}
 
 		$this->init();
@@ -160,25 +215,98 @@ class plgVmPaymentLunar extends vmPSPlugin
 
 		$this->fetchApiTransaction($paymentIntentId);
 
-		$orderId = VirtueMartModelOrders::getOrderIdByOrderNumber($orderNumber);
-		/** @var VirtueMartModelOrders $order */
-		$order = $this->vmOrderModel->getOrder($orderId);
+		if (!$orderNumber && 'before' == $this->method->checkout_mode) {
+			$orderId = $this->vmOrderModel->createOrderFromCart($this->cart);
+			/** @var VirtueMartModelOrders $order */
+			$order = $this->vmOrderModel->getOrder($orderId);
+			
+			if (!isset($order['details'])) {
+				$this->redirectBackWithNotification('Invalid order');
+			}
 
-		$this->finalizeOrder($order['details']['BT']);
+			$this->billingDetails = $order['details']['BT'];
+			
+			$this->storeDbLunarTransaction($paymentIntentId);
+		}
+		
+		$this->finalizeOrder();
 
 		return true;
+	}
+	
+	/** */
+	private function finalizeOrder()
+	{
+		$order['order_status'] = $this->getNewStatus($this->method);
+		$order['customer_notified'] = 1;
+		$order['comments'] = '';
+
+		/**
+		 * There is no VM config setting for os_trigger_paid
+		 * In the future, we must set the status for capture on vmConfig
+		 * Add the additional info here
+		 */
+		if ('instant' === $this->method->capture_mode) {
+			$date = Factory::getDate();
+			$today = $date->toSQL();
+			$order['paid_on'] = $today;
+			$order['paid'] = $this->totalAmount;
+		}
+
+		$this->vmOrderModel->updateStatusForOneOrder($this->billingDetails->virtuemart_order_id, $order, true);
+
+		vRequest::setVar('html', $this->renderByLayout('order_done', [
+			'method'=> $this->method,
+			'cart'=> $this->cart,
+			'billingDetails' => $this->billingDetails,
+			'payment_name' => $this->renderPluginName($this->method),
+			'displayTotalInPaymentCurrency' => $this->getPriceWithCurrency(),
+			'orderlink' => $this->getOrderLink(),
+		]));
+
+		$this->cart->emptyCart();
+
+		$this->setPaymentIntentCookie('', 1);
+	}
+
+	/**
+	 * 
+	 */
+	private function getPriceWithCurrency()
+	{
+		/** @var CurrencyDisplay $currencyInstance */
+		$currencyInstance = CurrencyDisplay::getInstance($this->currencyId, $this->billingDetails->virtuemart_vendor_id);
+		return $this->totalAmount . ' ' . $currencyInstance->getSymbol();
 
 	}
 
+	/**
+	 * 
+	 */
+	private function getOrderLink()
+	{
+		$orderLink='';
+		$tracking = VmConfig::get('ordertracking','guests');
+
+		if ($tracking !='none' and !($tracking =='registered' and empty($this->billingDetails->virtuemart_user_id))) {
+
+			$orderLink = 'index.php?option=com_virtuemart&view=orders&layout=details&order_number=' . $this->billingDetails->order_number;
+			if ($tracking == 'guestlink' or ($tracking == 'guests' and empty($this->billingDetails->virtuemart_user_id))) {
+				$orderLink .= '&order_pass=' . $this->billingDetails->order_pass;
+			}
+		}
+
+		return $orderLink;
+	}
 
     /**
      * SET ARGS
      */
-    private function setArgs()
+    private function setArgs($orderId = null)
     {
 		$this->getPaymentCurrency($this->method);
 		
-		$billingDetail = $this->cart->BT;
+		$billingDetails = $this->cart->BT;
 
         $this->args = [
             'integration' => [
@@ -191,12 +319,12 @@ class plgVmPaymentLunar extends vmPSPlugin
                 'decimal' => $this->totalAmount,
             ],
             'custom' => [
-                // 'orderId' => '', // the order is not created at this point
+                'orderId' => $orderId ?? $billingDetails['email'],
                 'products' => $this->getFormattedProducts(),
                 'customer' => [
-                    'name' => $billingDetail['first_name'] . " " . $billingDetail['last_name'],
-                    'email' => $billingDetail['email'],
-                    'telephone' => $billingDetail['phone_1'],
+                    'name' => $billingDetails['first_name'] . " " . $billingDetails['last_name'],
+                    'email' => $billingDetails['email'],
+                    'telephone' => $billingDetails['phone_1'],
                     // 'address' => $address,
                     'ip' => ShopFunctions::getClientIP(),
                 ],
@@ -230,7 +358,7 @@ class plgVmPaymentLunar extends vmPSPlugin
             $this->args['test'] = $this->getTestObject();
         }
     }
-	
+
     /** */
     private function getPaymentIntentCookie()
     {
@@ -249,6 +377,13 @@ class plgVmPaymentLunar extends vmPSPlugin
 		$this->setPaymentIntentCookie('', 1);
 		$this->app->enqueueMessage($errorMessage, 'error');
 		$this->app->redirect(Route::_('index.php?option=com_virtuemart&view=cart'), 302);
+    }
+
+    /** */
+    private function getErrorResponse($errorMessage)
+    {
+		$this->setPaymentIntentCookie('', 1);
+		return json_encode(['error' => $errorMessage]);
     }
 
 	/**
@@ -330,7 +465,7 @@ class plgVmPaymentLunar extends vmPSPlugin
 
 
 	/** */
-	private function storeDbLunarTransaction($paymentIntentId, $billingDetails)
+	private function storeDbLunarTransaction($paymentIntentId)
 	{
 		$this->storePSPluginInternalData([
 			// 'payment_method'              => $this->paymentMethod,
@@ -338,68 +473,14 @@ class plgVmPaymentLunar extends vmPSPlugin
 			'payment_order_total'         => vmPSPlugin::getAmountValueInCurrency($this->totalAmount, $this->currencyId),
 			'payment_currency'            => $this->currencyCode,
 			'email_currency'              => $this->emailCurrency,
-			'order_number'                => $billingDetails->order_number,
-			'virtuemart_paymentmethod_id' => $billingDetails->virtuemart_paymentmethod_id,
+			'order_number'                => $this->billingDetails->order_number,
+			'virtuemart_paymentmethod_id' => $this->billingDetails->virtuemart_paymentmethod_id,
 			'payment_name'                => $this->renderPluginName($this->method),
 			'cost_per_transaction'        => $this->method->cost_per_transaction,
 			'cost_min_transaction'        => $this->method->cost_min_transaction,
 			'cost_percent_total'          => $this->method->cost_percent_total,
 			'tax_id'                      => $this->method->tax_id,
 		]);
-	} 
-
-
-	/** */
-	private function finalizeOrder($billingDetails)
-	{
-		/** @var CurrencyDisplay $currencyInstance */
-		$currencyInstance = CurrencyDisplay::getInstance($this->currencyId, $billingDetails->virtuemart_vendor_id);
-		$priceDisplayWithCurrency = $this->totalAmount . ' ' . $currencyInstance->getSymbol();
-
-		$orderlink='';
-		$tracking = VmConfig::get('ordertracking','guests');
-
-		if ($tracking !='none' and !($tracking =='registered' and empty($billingDetails->virtuemart_user_id))) {
-
-			$orderlink = 'index.php?option=com_virtuemart&view=orders&layout=details&order_number=' . $billingDetails->order_number;
-			if ($tracking == 'guestlink' or($tracking == 'guests' and empty($billingDetails->virtuemart_user_id))) {
-				$orderlink .= '&order_pass=' . $billingDetails->order_pass;
-			}
-		}
-
-		$html = $this->renderByLayout('order_done', array(
-			'method'=> $this->method,
-			'cart'=> $this->cart,
-			'billingDetails' => $billingDetails,
-			'payment_name' => $this->renderPluginName($this->method),
-			'displayTotalInPaymentCurrency' => $priceDisplayWithCurrency,
-			'orderlink' => $orderlink,
-		));
-
-		$this->cart->emptyCart();
-
-		$order['order_status'] = $this->getNewStatus($this->method);
-		$order['customer_notified'] = 1;
-		$order['comments'] = '';
-
-		/**
-		 * There is no VM config setting for os_trigger_paid
-		 * In the future, we must set the status for capture on vmConfig
-		 * Add the additional info here
-		 */
-		if ($this->method->capture_mode === 'instant') {
-			$date = Factory::getDate();
-			$today = $date->toSQL();
-			$order['paid_on'] = $today;
-			$order['paid'] = $this->totalAmount;
-		}
-
-		$this->vmOrderModel->updateStatusForOneOrder($billingDetails->virtuemart_order_id, $order, true);
-
-		vRequest::setVar('display_title', false);
-		vRequest::setVar('html', $html);
-
-		$this->setPaymentIntentCookie('', 1);
 	}
 
 	/**
@@ -459,7 +540,7 @@ class plgVmPaymentLunar extends vmPSPlugin
 	function plgVmgetPaymentCurrency($virtuemart_paymentmethod_id, &$paymentCurrencyId) {
 
 		if (!$this->checkMethodIsSelected($virtuemart_paymentmethod_id)) {
-			return;
+			return $this->check;
 		}
 
 		$this->getPaymentCurrency($this->method);
@@ -475,10 +556,10 @@ class plgVmPaymentLunar extends vmPSPlugin
 		$this->method = $this->getVmPluginMethod($methodId);
 
 		if (!$this->method) {
-			return false;
+			return $this->check = null;
 		}
 		if (!$this->selectedThisElement($this->method->payment_element)) {
-			return false;
+			return $this->check = false;
 		}
 
 		return true;
@@ -489,10 +570,10 @@ class plgVmPaymentLunar extends vmPSPlugin
 	 * @param $data
 	 * @return null
 	 */
-	function plgVmOnUserInvoice($orderDetails, &$data) {
-
+	public function plgVmOnUserInvoice($orderDetails, &$data)
+	{
 		if (!$this->checkMethodIsSelected($orderDetails['virtuemart_paymentmethod_id'])) {
-			return null;
+			return $this->check;
 		}
 
 		if (
@@ -508,15 +589,15 @@ class plgVmPaymentLunar extends vmPSPlugin
 		}
 	}
 
-	protected function renderPluginName( $plugin) {
-
-		$return ='
+	protected function renderPluginName($plugin)
+	{
+		$html ='
 		<style>.lunar-wrapper .payment_logo img {
 				height: 30px;
 				padding: 2px;
 			}</style>';
-		$return .= "<div class='lunar-wrapper' style='display: inline-block'><div class='lunar_title' >" . $plugin->title . "</div>";
-		$return .= "<div class='payment_logo' >";
+		$html .= "<div class='lunar-wrapper' style='display: inline-block'><div class='lunar_title' >" . $plugin->title . "</div>";
+		$html .= "<div class='payment_logo' >";
 
 		$path = JURI::root().'plugins/vmpayment/lunar/images/' ;
 		$allcards = array('mastercard' =>'mastercard','maestro' =>'maestro','visa' =>'visa','visaelectron' =>'visaelectron');
@@ -529,26 +610,26 @@ class plgVmPaymentLunar extends vmPSPlugin
 
 		foreach($cards as $card) {
 			if (isset($allcards[$card]) && isset($plugin->$card)) {
-				$return .= "<img src='" . $path . $plugin->$card . "' />";
+				$html .= "<img src='" . $path . $plugin->$card . "' />";
 			}
 		}
 
-		$return .= "</div></div>";
-		$return .= '<div class="lunar_desc" >' . $plugin->description . '</div>';
+		$html .= "</div></div>";
+		$html .= '<div class="lunar_desc" >' . $plugin->description . '</div>';
 
-		$layout = vRequest::getCmd('layout', 'default');
+		// $layout = vRequest::getCmd('layout', 'default');
 		$view = vRequest::getCmd('view', '');
 
 		if ($plugin->checkout_mode === 'before' && $view === 'cart') {
 			if (!isset(self::$IDS[$plugin->virtuemart_paymentmethod_id])) {
-				$return .= $this->renderByLayout('pay_before', array(
+				$html .= $this->renderByLayout('pay_before', array(
 					'method'=> $plugin
 				));
-			//$return .="<pre>".print_r($plugin,true)."</pre>";
+			//$html .="<pre>".print_r($plugin,true)."</pre>";
 			}
 			self::$IDS[$plugin->virtuemart_paymentmethod_id] = true;
 		}
-		return $return;
+		return $html;
 	}
 
 	/**
@@ -579,23 +660,12 @@ class plgVmPaymentLunar extends vmPSPlugin
 	}
 
 	/**
-	 *
-	 */
-	function updateTransactionId($transactionId, $orderid) {
-			$data = new stdClass();
-			$data->transaction_id = $transactionId;
-			$data->virtuemart_order_id = $orderid;
-			$db	= Factory::getDBO();
-			$db->updateObject($this->_tablename, $data, 'virtuemart_order_id');
-	}
-
-	/**
 	 * Update lunar on update status
 	 */
-	function plgVmOnUpdateOrderPayment( $order, $old_order_status) {
+	public function plgVmOnUpdateOrderPayment( $order, $old_order_status) {
 
 		if (!$this->checkMethodIsSelected($order->virtuemart_paymentmethod_id)) {
-			return false;
+			return $this->check;
 		}
 
 		// //@TODO half refund $order->order_status != $method->status_half_refund
