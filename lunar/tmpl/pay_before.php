@@ -4,12 +4,13 @@
     jQuery(document).ready(function() {
 
         let $container = Virtuemart.containerSelector ? jQuery(Virtuemart.containerSelector) : jQuery('#cart-view');
+        let submitBtnTask = $container.find('#checkoutFormSubmit').attr('task');
 
         jQuery('#checkoutForm').on('submit', function(e) {
-            
+
             // the form is submitted when tos accepted (& the page is reloaded)
             // submit button has task attribute if tos not accepted
-            if('checkout' === this.find('#checkoutFormSubmit').attr('task')) {
+            if('checkout' === submitBtnTask) {
                 console.log('tos accepted');
                 return;
             }

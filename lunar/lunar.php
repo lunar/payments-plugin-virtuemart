@@ -91,18 +91,29 @@ class plgVmPaymentLunar extends vmPSPlugin
     {
 		if('redirect' == vRequest::getCmd('action')) {
 			if (!$this->checkMethodIsSelected(vRequest::getVar('pm'))) {
-				echo $this->getErrorResponse('Wrong payment method ID');
+				echo $this->getJsonErrorResponse('Wrong payment method ID');
 				jexit();
 			}
 
-			$this->initializePayment();
+			try {
+				$this->initializePaymentBeforeOrder();
+
+			} catch(ApiException $e) {
+				$errorMessage = $e->getMessage();
+
+			} catch(\Exception $e) {
+				$errorMessage = 'Server error. Please try again.';
+			}
+
+			echo $this->getJsonErrorResponse($errorMessage);
+			jexit();
 		}
 	}
 	
 	/**
 	 * Used for ajax actions
 	 */
-	private function initializePayment()
+	private function initializePaymentBeforeOrder()
     {
 		$this->init();
 
@@ -110,21 +121,16 @@ class plgVmPaymentLunar extends vmPSPlugin
 
 		$paymentIntentId = $this->getPaymentIntentCookie();
 
-		// check if retrieved payment intent is for the current cart/order
 		if ($paymentIntentId) {
+			// check if retrieved payment intent is for the current cart/order
 			$this->fetchApiTransaction($paymentIntentId);
 		} else {
-			try {
-				$paymentIntentId = $this->apiClient->payments()->create($this->args);
-				$this->setPaymentIntentCookie($paymentIntentId);
-			} catch(ApiException $e) {
-				echo $this->getErrorResponse($e->getMessage());
-				jexit();
-			}
+			$paymentIntentId = $this->apiClient->payments()->create($this->args);
+			$this->setPaymentIntentCookie($paymentIntentId);
 		}
 
 		if (!$paymentIntentId) {
-			echo $this->getErrorResponse('An error occurred creating payment intent. Please try again or contact system administrator.');
+			echo $this->getJsonErrorResponse('An error occurred creating payment intent. Please try again or contact system administrator.');
 			jexit();
 		}
 
@@ -153,16 +159,16 @@ class plgVmPaymentLunar extends vmPSPlugin
 		
 		$paymentIntentId = $this->getPaymentIntentCookie();
 
-		// check if retrieved payment intent is for the current cart/order
-		if ($paymentIntentId) {
-			$this->fetchApiTransaction($paymentIntentId);
-		} else {
-			try {
+		try {
+			if ($paymentIntentId) {
+				// check if retrieved payment intent is for the current cart/order
+				$this->fetchApiTransaction($paymentIntentId);
+			} else {
 				$paymentIntentId = $this->apiClient->payments()->create($this->args);
 				$this->setPaymentIntentCookie($paymentIntentId);
-			} catch(ApiException $e) {
-				$this->redirectBackWithNotification($e->getMessage());
 			}
+		} catch(ApiException $e) {
+			$this->redirectBackWithNotification($e->getMessage());
 		}
 
 		if (! $paymentIntentId) {
@@ -213,7 +219,11 @@ class plgVmPaymentLunar extends vmPSPlugin
 			$this->redirectBackWithNotification('No payment intent id found.');
 		}
 
-		$this->fetchApiTransaction($paymentIntentId);
+		try {
+			$this->fetchApiTransaction($paymentIntentId);
+		} catch(ApiException $e) {
+			$this->redirectBackWithNotification($e->getMessage());
+		}
 
 		if (!$orderNumber && 'before' == $this->method->checkout_mode) {
 			$orderId = $this->vmOrderModel->createOrderFromCart($this->cart);
@@ -229,6 +239,19 @@ class plgVmPaymentLunar extends vmPSPlugin
 			$this->storeDbLunarTransaction($paymentIntentId);
 		}
 		
+		if ('instant' === $this->method->capture_mode) {
+			try {
+				$this->apiClient->payments()->capture($paymentIntentId, [
+					'amount' => [
+						'currency' => $this->currencyCode,
+						'decimal' => $this->totalAmount,
+					],
+				]);
+			} catch(ApiException $e) {
+				$this->redirectBackWithNotification($e->getMessage());
+			}
+		}
+
 		$this->finalizeOrder();
 
 		return true;
@@ -380,7 +403,7 @@ class plgVmPaymentLunar extends vmPSPlugin
     }
 
     /** */
-    private function getErrorResponse($errorMessage)
+    private function getJsonErrorResponse($errorMessage)
     {
 		$this->setPaymentIntentCookie('', 1);
 		return json_encode(['error' => $errorMessage]);
@@ -391,14 +414,10 @@ class plgVmPaymentLunar extends vmPSPlugin
 	 */
 	private function fetchApiTransaction($transaction_id)
 	{
-		try {
-			$apiResponse = $this->apiClient->payments()->fetch($transaction_id);
-		} catch(ApiException $e) {
-			$this->redirectBackWithNotification($e->getMessage());
-		}
+		$apiResponse = $this->apiClient->payments()->fetch($transaction_id);
 
 		if (!$this->parseApiTransactionResponse($apiResponse)) {
-			$this->redirectBackWithNotification('Failed to get transaction with provided payment id.');
+			throw new ApiException('Amount or currency doesn\'t match ');
 		}
 
 		return $apiResponse;
