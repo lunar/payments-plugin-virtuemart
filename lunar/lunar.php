@@ -27,20 +27,22 @@ class plgVmPaymentLunar extends vmPSPlugin
 	static $IDS = array();
 	protected $_isInList = false;
 
-	private $app;
-	private $method;
-	private VirtueMartCart $cart;
-	private VirtueMartModelOrders $vmOrderModel;
-	private ApiClient $apiClient;
-	private int $currencyId;
-	private string $currencyCode;
-	private string $totalAmount;
-	private string $emailCurrency;
-	private ?bool $check;
-	private $billingDetails;
-	private array $args = [];
-	private string $intentIdKey = '_lunar_intent_id';
-	private bool $testMode = false;
+	protected $paymentMethod = 'card';
+
+	protected $app;
+	protected $method;
+	protected VirtueMartCart $cart;
+	protected VirtueMartModelOrders $vmOrderModel;
+	protected ApiClient $apiClient;
+	protected int $currencyId;
+	protected string $currencyCode;
+	protected string $totalAmount;
+	protected string $emailCurrency;
+	protected ?bool $check;
+	protected $billingDetails;
+	protected array $args = [];
+	protected string $intentIdKey = '_lunar_intent_id';
+	protected bool $testMode = false;
 
 
 	public function __construct(& $subject, $config) {
@@ -363,17 +365,16 @@ class plgVmPaymentLunar extends vmPSPlugin
 							.'index.php?option=com_virtuemart&view=vmplg&task=pluginresponsereceived' 
 							. '&order_number=' . $this->cart->order_number 
 							. '&pm=' . $this->method->virtuemart_paymentmethod_id 
-							. '&lunar_method=' . 'card', //$this->paymentMethod
-            // 'preferredPaymentMethod' => $this->paymentMethod,
-            'preferredPaymentMethod' => 'card',
+							. '&lunar_method=' . $this->paymentMethod,
+            'preferredPaymentMethod' => $this->paymentMethod,
         ];
 
-        // if ('mobilePay' == $this->paymentMethod) {
-        //     $this->args['mobilePayConfiguration'] = [
-        //         'configurationID' => $this->method->configuration_id,
-        //         'logo' => $this->method->logo_url,
-        //     ];
-        // }
+        if ('mobilePay' == $this->paymentMethod) {
+            $this->args['mobilePayConfiguration'] = [
+                'configurationID' => $this->method->configuration_id,
+                'logo' => $this->method->logo_url,
+            ];
+        }
 
         if ($this->testMode) {
             $this->args['test'] = $this->getTestObject();
