@@ -252,13 +252,13 @@ class plgVmPaymentLunar extends vmPSPlugin
 			}
 		}
 
-		$this->finalizeOrder();
+		$this->finalizeOrder($html);
 
 		return true;
 	}
 	
 	/** */
-	private function finalizeOrder()
+	private function finalizeOrder(&$html)
 	{
 		$order['order_status'] = $this->getNewStatus($this->method);
 		$order['customer_notified'] = 1;
@@ -278,14 +278,14 @@ class plgVmPaymentLunar extends vmPSPlugin
 
 		$this->vmOrderModel->updateStatusForOneOrder($this->billingDetails->virtuemart_order_id, $order, true);
 
-		vRequest::setVar('html', $this->renderByLayout('order_done', [
+		$html = $this->renderByLayout('order_done', [
 			'method'=> $this->method,
 			'cart'=> $this->cart,
 			'billingDetails' => $this->billingDetails,
 			'payment_name' => $this->renderPluginName($this->method),
 			'displayTotalInPaymentCurrency' => $this->getPriceWithCurrency(),
 			'orderlink' => $this->getOrderLink(),
-		]));
+		]);
 
 		$this->cart->emptyCart();
 
