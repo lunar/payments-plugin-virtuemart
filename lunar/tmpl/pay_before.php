@@ -3,15 +3,22 @@
 <script type="text/javascript">
     jQuery(document).ready(function() {
 
-        let $container = Virtuemart.containerSelector ? jQuery(Virtuemart.containerSelector) : jQuery('#cart-view');
-        let submitBtnTask = $container.find('#checkoutFormSubmit').attr('task');
+        let methodId = '<?php echo $viewData['method']->virtuemart_paymentmethod_id; ?>';
+        let methodIdChecked = jQuery("[name=virtuemart_paymentmethod_id]:checked").val();
+        let doNothing = false;
+
+        jQuery("[name=virtuemart_paymentmethod_id]").on('click', function(e) {
+            doNothing = true;
+            methodIdChecked = jQuery(this).val();
+        });
+        
+        jQuery('#tos').on('click', function(e) {
+            doNothing = true;
+        });
 
         jQuery('#checkoutForm').on('submit', function(e) {
 
-            // the form is submitted when tos accepted (& the page is reloaded)
-            // submit button has task attribute if tos not accepted
-            if('checkout' === submitBtnTask) {
-                console.log('tos accepted');
+            if ((methodId !== methodIdChecked) || doNothing) {
                 return;
             }
 
@@ -20,8 +27,8 @@
             jQuery.ajax({
                 type: 'POST',
                 url: Virtuemart.vmSiteurl + 
-                    'index.php?option=com_virtuemart&view=plugin&type=vmpayment&name=lunar&action=redirect&format=json' +
-                    '&pm=' + jQuery("[name=virtuemart_paymentmethod_id]:checked").val(),
+                    'index.php?option=com_virtuemart&view=plugin&type=vmpayment' +
+                    '&name=lunar&action=redirect&format=json&pm=' + methodIdChecked,
                 async: false,
                 dataType: 'json',
                 success: function(response) {
