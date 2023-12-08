@@ -63,13 +63,14 @@
                        label="VMPAYMENT_LUNAR_STATUS_SUCCESS" description="VMPAYMENT_LUNAR_STATUS_SUCCESS_TIP"/>
                 
                 <!-- <field name="status_ipn_success_updateable" type="vmorderstate" scope="com_virtuemart" default=""  multiple="true"
-                       label="VMPAYMENT_LUNAR_STATUS_UPDATEABLE" description="VMPAYMENT_LUNAR_STATUS_UPDATEABLE_TIP"/>
+                       label="VMPAYMENT_LUNAR_STATUS_UPDATEABLE" description="VMPAYMENT_LUNAR_STATUS_UPDATEABLE_TIP"/> -->
+                
                 <field name="status_canceled" type="vmorderstate" scope="com_virtuemart" default="X"
-                       label="VMPAYMENT_LUNAR_STATUS_CANCEL" description="VMPAYMENT_LUNAR_STATUS_CANCEL_TIP"/> -->
+                       label="VMPAYMENT_LUNAR_STATUS_CANCEL" description="VMPAYMENT_LUNAR_STATUS_CANCEL_TIP"/>
                 
                 <field class="Authorization" name="status_capture" type="vmorderstate" scope="com_virtuemart"
-                       default="S"
-                       label="VMPAYMENT_LUNAR_STATUS_CAPTURE" description="VMPAYMENT_LUNAR_STATUS_CAPTURE_TIP"/>
+                       default="S" label="VMPAYMENT_LUNAR_STATUS_CAPTURE" description="VMPAYMENT_LUNAR_STATUS_CAPTURE_TIP"/>
+                
                 <field name="status_refunded" type="vmorderstate" scope="com_virtuemart" default="R"
                        label="VMPAYMENT_LUNAR_STATUS_REFUND" description="VMPAYMENT_LUNAR_STATUS_REFUND_TIP"/>
                 

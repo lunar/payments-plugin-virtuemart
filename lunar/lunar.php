@@ -60,12 +60,17 @@ class plgVmPaymentLunar extends vmPSPlugin
 		$this->testMode = !!$this->app->input->cookie->get('lunar_testmode'); // same with !!$_COOKIE['lunar_testmode']
 	}
 
+	private function setApiClient()
+	{
+		$this->apiClient = new ApiClient($this->method->api_key, null, $this->testMode);
+	}
+
 	private function init()
 	{
 		$this->cart = VirtueMartCart::getCart(false);
 		$this->cart->prepareCartData();
 
-		$this->apiClient = new ApiClient($this->method->api_key, null, $this->testMode);
+		$this->setApiClient();
 
 		$this->getPaymentCurrency($this->method);
 
@@ -89,6 +94,9 @@ class plgVmPaymentLunar extends vmPSPlugin
 	 */
 	public function plgVmOnSelfCallFE($type, $name, &$render)
     {
+file_put_contents(dirname(__DIR__, 3) . "/zzz.log", json_encode(__METHOD__.'-->'.__LINE__, JSON_PRETTY_PRINT) . PHP_EOL, FILE_APPEND);	
+file_put_contents(dirname(__DIR__, 3) . "/zzz.log", json_encode($type, JSON_PRETTY_PRINT) . PHP_EOL, FILE_APPEND);	
+file_put_contents(dirname(__DIR__, 3) . "/zzz.log", json_encode($name, JSON_PRETTY_PRINT) . PHP_EOL, FILE_APPEND);	
 		if('redirect' == vRequest::getCmd('action')) {
 			if (!$this->checkMethodIsSelected(vRequest::getVar('pm'))) {
 				echo $this->getJsonErrorResponse('Wrong payment method ID');
@@ -405,9 +413,9 @@ class plgVmPaymentLunar extends vmPSPlugin
 	/**
 	 * 
 	 */
-	private function fetchApiTransaction($transaction_id)
+	private function fetchApiTransaction($paymentIntentId)
 	{
-		$apiResponse = $this->apiClient->payments()->fetch($transaction_id);
+		$apiResponse = $this->apiClient->payments()->fetch($paymentIntentId);
 
 		if (!$this->parseApiTransactionResponse($apiResponse)) {
 			throw new ApiException('Amount or currency doesn\'t match ');
@@ -677,55 +685,77 @@ class plgVmPaymentLunar extends vmPSPlugin
 
 		// //@TODO half refund $order->order_status != $method->status_half_refund
 
-		// if ($order->order_status != $this->method->status_capture
-		// 	&& $order->order_status != $this->method->status_success
-		// 	&& $order->order_status != $this->method->status_refunded
-		// 	) {
-		// 	// vminfo('Order_status not found '.$order->order_status.' in '.$method->status_capture.', '.$method->status_success.', '.$method->status_refunded);
-		// 	return null;
-		// }
+		if (
+			$order->order_status != $this->method->status_capture
+			&& $order->order_status != $this->method->status_success
+			&& $order->order_status != $this->method->status_refunded
+			&& $order->order_status != $this->method->status_canceled
+		) {
+			// vminfo('Order_status not found '.$order->order_status.' in '.$method->status_capture.', '.$method->status_success.', '.$method->status_refunded);
+			return null;
+		}
 
-		// // order exist for lunar ?
-		// if (!($paymentTable = $this->getDataByOrderId($order->virtuemart_order_id))) {
-		// 	return null;
-		// }
+		$orderId = $order->virtuemart_order_id;
 
-		// $this->setApiClient();
-		// $transactionid = $paymentTable->transaction_id;
-		// $response = \Lunar\Transaction::fetch( $transactionid);
-		// vmdebug('Lunar Transaction::fetch',$response);
+		if (!($lunarTransaction = $this->getDataByOrderId($orderId))) {
+			return null;
+		}
 
-		// if ($order->order_status == $this->method->status_refunded) {
-		// 	/* refund payment if already captured */
-		// 	if ( !empty($response['transaction']['capturedAmount'])) {
-		// 		$amount = $response['transaction']['capturedAmount'];
-		// 		$data = array(
-		// 			'amount'     => $amount,
-		// 			'descriptor' => ""
-		// 		);
-		// 		$response = \Lunar\Transaction::refund($transactionid, $data);
-		// 		vmdebug('Lunar Transaction::refund',$response);
-		// 	} else {
-		// 		/* void payment if not already captured */
-		// 		$data = array(
-		// 			'amount' => $response['transaction']['amount']
-		// 		);
-		// 		$response = \Lunar\Transaction::void( $transactionid, $data);
-		// 		vmdebug('Lunar Transaction::void',$response);
-		// 	}
-		// } elseif ($order->order_status == $this->method->status_capture) {
-		// 	if ( empty($response['transaction']['capturedAmount'])) {
-		// 		$amount = $response['transaction']['amount'];
-		// 		$data = array(
-		// 			'amount'     => $amount,
-		// 			'descriptor' => ""
-		// 		);
+		$this->setApiClient();
+		$this->getPaymentCurrency($this->method);
 
-		// 		$response = \Lunar\Transaction::capture( $transactionid, $data);
+		$paymentIntentId = $lunarTransaction->transaction_id;
+		$this->currencyCode = $this->getCurrencyCode();
+		$this->totalAmount = $order->order_total;
+		$action = '';
 
-		// 		vmdebug('Lunar Transaction::capture',$response);
-		// 	}
-		// }
+		try {
+			$this->fetchApiTransaction($paymentIntentId);
+
+			$data = [
+				'amount' => [
+					'currency' => $this->currencyCode,
+					'decimal' => $this->totalAmount,
+				]
+			];
+
+			switch ($order->order_status) {
+				case $this->method->status_capture:
+					$action = 'capture';
+					break;
+				case $this->method->status_refunded:
+					$action = 'refund';
+					break;
+				case $this->method->status_canceled:
+					$action = 'cancel';
+					break;
+				}
+
+			$response = $this->processTransaction($paymentIntentId, $data, $action);
+
+		} catch(\Exception $e) {
+			$orderLink = JURI::root() . ('/administrator/index.php?option=com_virtuemart&view=orders&task=edit&virtuemart_order_id=' . $orderId);
+			$this->app->enqueueMessage($e->getMessage(), 'error');
+			$this->app->redirect($orderLink, 302);
+		}
+
+		$this->app->enqueueMessage("Lunar API action - strtoupper($action) : " . $response["{$action}State"]);
+	}
+
+	/**
+	 * 
+	 */
+	private function processTransaction($paymentIntentId, $data, $action)
+	{
+		$apiResponse = $this->apiClient->payments()->{$action}($paymentIntentId, $data);
+
+		if ('completed' != ($apiResponse["{$action}State"] ?? '')) {
+			throw new \Exception($this->getResponseError($apiResponse));
+		}
+
+		vmdebug("Lunar Transaction::$action", $apiResponse);
+
+		return $apiResponse;
 	}
 	
     /**
