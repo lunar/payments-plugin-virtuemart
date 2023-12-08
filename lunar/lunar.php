@@ -731,7 +731,7 @@ file_put_contents(dirname(__DIR__, 3) . "/zzz.log", json_encode($name, JSON_PRET
 					break;
 				}
 
-			$response = $this->processTransaction($paymentIntentId, $data, $action);
+			$this->processTransaction($paymentIntentId, $data, $action);
 
 		} catch(\Exception $e) {
 			$orderLink = JURI::root() . ('/administrator/index.php?option=com_virtuemart&view=orders&task=edit&virtuemart_order_id=' . $orderId);
@@ -739,7 +739,7 @@ file_put_contents(dirname(__DIR__, 3) . "/zzz.log", json_encode($name, JSON_PRET
 			$this->app->redirect($orderLink, 302);
 		}
 
-		$this->app->enqueueMessage("Lunar API action - strtoupper($action) : " . $response["{$action}State"]);
+		$this->app->enqueueMessage("Lunar API action - $action : completed successfully");
 	}
 
 	/**
