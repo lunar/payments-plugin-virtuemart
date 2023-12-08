@@ -7,7 +7,7 @@ $billingDetail = $viewData["billingDetails"];
 
 ?>
 
-<div id="lunar-after-info">
+<div id="lunar-order-info">
 	<div class="post_payment_payment_name" style="width: 100%">
 		<?php echo  $viewData["payment_name"]; ?>
 	</div>

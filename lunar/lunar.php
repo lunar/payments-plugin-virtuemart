@@ -177,17 +177,7 @@ class plgVmPaymentLunar extends vmPSPlugin
 
 		$this->storeDbLunarTransaction($paymentIntentId);
 
-		vRequest::setVar('html', $this->renderByLayout('pay_after', [
-			'method'=> $this->method,
-			'cart'=> $this->cart,
-			'billingDetails' => $this->billingDetails,
-			'payment_name' => $this->renderPluginName($this->method),
-			'displayTotalInPaymentCurrency' => $this->getPriceWithCurrency(),
-			'orderlink' => $this->getOrderLink(),
-			'redirectUrl' => ($this->testMode ? self::TEST_REMOTE_URL : self::REMOTE_URL) . $paymentIntentId,
-		]));
-
-		return true;
+		$this->app->redirect(($this->testMode ? self::TEST_REMOTE_URL : self::REMOTE_URL) . $paymentIntentId, 302);
 	}
 
 	/**
@@ -252,6 +242,9 @@ class plgVmPaymentLunar extends vmPSPlugin
 			}
 		}
 
+		$order = $this->vmOrderModel->getOrder($this->cart->virtuemart_order_id);
+		$this->billingDetails = $order['details']['BT'];
+
 		$this->finalizeOrder($html);
 
 		return true;
@@ -260,7 +253,7 @@ class plgVmPaymentLunar extends vmPSPlugin
 	/** */
 	private function finalizeOrder(&$html)
 	{
-		$order['order_status'] = $this->getNewStatus($this->method);
+		$order['order_status'] = $this->getNewStatus();
 		$order['customer_notified'] = 1;
 		$order['comments'] = '';
 
@@ -506,20 +499,11 @@ class plgVmPaymentLunar extends vmPSPlugin
 	 * Keep backwards compatibility
 	 * a new parameter has been added in the xml file
 	 */
-	function getNewStatus($method) {
-		//instant payment directly capture
-		if ($method->capture_mode === 'instant') {
-			if (isset($method->status_capture) and $method->status_capture!="") {
-				return $method->status_capture;
-			} else {
-				return 'S';
-			}
+	function getNewStatus() {
+		if ('instant' === $this->method->capture_mode) {
+			return $this->method->status_capture ?? 'S';
 		} else {
-			if (isset($method->status_success) and $method->status_success!="") {
-				return $method->status_success;
-			} else {
-				return 'C';
-			}
+			return $this->method->status_success ?? 'C';
 		}
 	}
 
@@ -611,42 +595,45 @@ class plgVmPaymentLunar extends vmPSPlugin
 	protected function renderPluginName($plugin)
 	{
 		$html ='
-		<style>.lunar-wrapper .payment_logo img {
-				height: 30px;
-				padding: 2px;
-			}</style>';
-		$html .= "<div class='lunar-wrapper' style='display: inline-block'><div class='lunar_title' >" . $plugin->title . "</div>";
-		$html .= "<div class='payment_logo' >";
+			<style>
+				.lunar-wrapper .payment_logo img {
+					height: 30px;
+					padding: 2px;
+				}
+			</style>
+			<div class="lunar-wrapper" style="display: inline-block">
+			<div class="lunar_title" >' . $this->method->title . '</div>
+			<div class="payment_logo" >';
 
 		$path = JURI::root().'plugins/vmpayment/lunar/images/' ;
 		$allcards = array('mastercard' =>'mastercard','maestro' =>'maestro','visa' =>'visa','visaelectron' =>'visaelectron');
 
-		if (empty($plugin->card)) {
+		if (empty($this->method->card)) {
 			$cards = $allcards;
 		} else {
-			$cards = $plugin->card;
+			$cards = $this->method->card;
 		}
 
 		foreach($cards as $card) {
-			if (isset($allcards[$card]) && isset($plugin->$card)) {
-				$html .= "<img src='" . $path . $plugin->$card . "' />";
+			if (isset($allcards[$card]) && isset($this->method->$card)) {
+				$html .= '<img src="' . $path . $this->method->$card . '" />';
 			}
 		}
 
-		$html .= "</div></div>";
-		$html .= '<div class="lunar_desc" >' . $plugin->description . '</div>';
+		$html .= '</div></div>';
+		$html .= '<div class="lunar_desc" >' . $this->method->description . '</div>';
 
 		// $layout = vRequest::getCmd('layout', 'default');
 		$view = vRequest::getCmd('view', '');
 
-		if ($plugin->checkout_mode === 'before' && $view === 'cart') {
-			if (!isset(self::$IDS[$plugin->virtuemart_paymentmethod_id])) {
+		if ($this->method->checkout_mode === 'before' && $view === 'cart') {
+			if (!isset(self::$IDS[$this->method->virtuemart_paymentmethod_id])) {
 				$html .= $this->renderByLayout('pay_before', array(
-					'method'=> $plugin
+					'method'=> $this->method
 				));
-			//$html .="<pre>".print_r($plugin,true)."</pre>";
+			//$html .="<pre>".print_r($this->method,true)."</pre>";
 			}
-			self::$IDS[$plugin->virtuemart_paymentmethod_id] = true;
+			self::$IDS[$this->method->virtuemart_paymentmethod_id] = true;
 		}
 		return $html;
 	}
