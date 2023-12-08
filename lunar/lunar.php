@@ -602,21 +602,22 @@ class plgVmPaymentLunar extends vmPSPlugin
 				}
 			</style>
 			<div class="lunar-wrapper" style="display: inline-block">
-			<div class="lunar_title" >' . $this->method->title . '</div>
-			<div class="payment_logo" >';
+				<div class="lunar_title" >' . $this->method->title . '</div>
+				<div class="payment_logo" >';
 
-		$path = JURI::root().'plugins/vmpayment/lunar/images/' ;
-		$allcards = array('mastercard' =>'mastercard','maestro' =>'maestro','visa' =>'visa','visaelectron' =>'visaelectron');
+		$allcards = ['mastercard'=>'mastercard','maestro'=>'maestro','visa'=>'visa','visaelectron'=>'visaelectron'];
 
-		if (empty($this->method->card)) {
+		if (empty($this->method->accepted_cards)) {
 			$cards = $allcards;
 		} else {
-			$cards = $this->method->card;
+			$cards = $this->method->accepted_cards;
 		}
 
-		foreach($cards as $card) {
-			if (isset($allcards[$card]) && isset($this->method->$card)) {
-				$html .= '<img src="' . $path . $this->method->$card . '" />';
+		foreach($cards as $image) {
+			if (isset($allcards[$image])) {
+				// $logoPath = JURI::root().'plugins/vmpayment/lunar/images/'.$image.'.sgv';
+				$logoPath = JURI::root().'plugins/vmpayment/lunar/images/'.$image.'.png'; // use png files because TCPDF doesn't like svg 
+				$html .= sprintf('<img src="%s" alt="logo" />', $logoPath);
 			}
 		}
 
