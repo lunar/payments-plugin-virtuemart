@@ -1,6 +1,6 @@
 {
   "name": "lunar/payments-plugin-virtuemart",
-  "description": "Lunar Online Payments for Virtuemart",
+  "description": "Lunar Online Payments for Joomla Virtuemart",
   "version": "2.0.0",
   "license": [
       "MIT"
