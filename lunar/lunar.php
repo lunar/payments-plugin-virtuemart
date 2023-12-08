@@ -94,9 +94,6 @@ class plgVmPaymentLunar extends vmPSPlugin
 	 */
 	public function plgVmOnSelfCallFE($type, $name, &$render)
     {
-file_put_contents(dirname(__DIR__, 3) . "/zzz.log", json_encode(__METHOD__.'-->'.__LINE__, JSON_PRETTY_PRINT) . PHP_EOL, FILE_APPEND);	
-file_put_contents(dirname(__DIR__, 3) . "/zzz.log", json_encode($type, JSON_PRETTY_PRINT) . PHP_EOL, FILE_APPEND);	
-file_put_contents(dirname(__DIR__, 3) . "/zzz.log", json_encode($name, JSON_PRETTY_PRINT) . PHP_EOL, FILE_APPEND);	
 		if('redirect' == vRequest::getCmd('action')) {
 			if (!$this->checkMethodIsSelected(vRequest::getVar('pm'))) {
 				echo $this->getJsonErrorResponse('Wrong payment method ID');
@@ -685,14 +682,19 @@ file_put_contents(dirname(__DIR__, 3) . "/zzz.log", json_encode($name, JSON_PRET
 
 		// //@TODO half refund $order->order_status != $method->status_half_refund
 
-		if (
-			$order->order_status != $this->method->status_capture
-			&& $order->order_status != $this->method->status_success
-			&& $order->order_status != $this->method->status_refunded
-			&& $order->order_status != $this->method->status_canceled
-		) {
-			// vminfo('Order_status not found '.$order->order_status.' in '.$method->status_capture.', '.$method->status_success.', '.$method->status_refunded);
-			return null;
+		$action = '';
+		switch ($order->order_status) {
+			case $this->method->status_capture:
+				$action = 'capture';
+				break;
+			case $this->method->status_refunded:
+				$action = 'refund';
+				break;
+			case $this->method->status_canceled:
+				$action = 'cancel';
+				break;
+			default:
+				return null;
 		}
 
 		$orderId = $order->virtuemart_order_id;
@@ -707,7 +709,6 @@ file_put_contents(dirname(__DIR__, 3) . "/zzz.log", json_encode($name, JSON_PRET
 		$paymentIntentId = $lunarTransaction->transaction_id;
 		$this->currencyCode = $this->getCurrencyCode();
 		$this->totalAmount = $order->order_total;
-		$action = '';
 
 		try {
 			$this->fetchApiTransaction($paymentIntentId);
@@ -718,18 +719,6 @@ file_put_contents(dirname(__DIR__, 3) . "/zzz.log", json_encode($name, JSON_PRET
 					'decimal' => $this->totalAmount,
 				]
 			];
-
-			switch ($order->order_status) {
-				case $this->method->status_capture:
-					$action = 'capture';
-					break;
-				case $this->method->status_refunded:
-					$action = 'refund';
-					break;
-				case $this->method->status_canceled:
-					$action = 'cancel';
-					break;
-				}
 
 			$this->processTransaction($paymentIntentId, $data, $action);
 
