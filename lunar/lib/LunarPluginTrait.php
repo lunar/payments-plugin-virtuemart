@@ -23,21 +23,19 @@ trait LunarPluginTrait
 	public function getTableSQLFields() {
 
 		return [
-			'id'                          => 'int(1) UNSIGNED NOT NULL AUTO_INCREMENT',
-			'virtuemart_order_id'         => 'int(1) UNSIGNED',
-			'payment_method' 			  => 'char(50)',
-			'transaction_id'              => 'varchar(1000)',
-			'payment_order_total'         => 'decimal(15,5) NOT NULL DEFAULT \'0.00000\'',
-			'payment_currency'            => 'char(3)',
-			'email_currency'              => 'char(3)',
-			'order_number'                => 'char(64)',
-			'virtuemart_paymentmethod_id' => 'mediumint(1) UNSIGNED',
-			'payment_name'                => 'varchar(5000)',
-			'cost_per_transaction'        => 'decimal(10,2)',
-			'cost_min_transaction'        => 'decimal(10,2)',
-			'cost_percent_total'          => 'decimal(10,2)',
-			'tax_id'                      => 'smallint(1)',
-
+			'id'                          => 'INT(1) UNSIGNED NOT NULL AUTO_INCREMENT',
+			'virtuemart_order_id'         => 'INT(1) UNSIGNED NOT NULL',
+			'transaction_id'              => 'VARCHAR(1000)',
+			'payment_order_total'         => 'DECIMAL(15,5) NOT NULL DEFAULT \'0.00000\'',
+			'payment_currency'            => 'CHAR(3)',
+			'email_currency'              => 'CHAR(3)',
+			'order_number'                => 'CHAR(64)',
+			'virtuemart_paymentmethod_id' => 'MEDIUMINT(1) UNSIGNED',
+			'payment_name'                => 'VARCHAR(5000)',
+			'cost_per_transaction'        => 'DECIMAL(10,2)',
+			'cost_min_transaction'        => 'DECIMAL(10,2)',
+			'cost_percent_total'          => 'DECIMAL(10,2)',
+			'tax_id'                      => 'SMALLINT(1)',
 		];
 	}
 
@@ -162,7 +160,7 @@ trait LunarPluginTrait
 	 */
 	public function getPluginVersion() 
     {
-		$xmlStr = file_get_contents(dirname(__DIR__).'/lunar.xml');
+		$xmlStr = file_get_contents(dirname(__DIR__).'/' . $this->_name . '.xml');
 		$xmlObj = simplexml_load_string($xmlStr);
 		return (string) $xmlObj->version;
 	}

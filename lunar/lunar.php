@@ -17,6 +17,9 @@ use Lunar\Exception\ApiException;
 use Lunar\Lunar as ApiClient;
 use Lunar\Payment\LunarPluginTrait;
 
+/**
+ * 
+ */
 class plgVmPaymentLunar extends vmPSPlugin
 {
 	use LunarPluginTrait;
@@ -486,7 +489,6 @@ class plgVmPaymentLunar extends vmPSPlugin
 	private function storeDbLunarTransaction($paymentIntentId)
 	{
 		$this->storePSPluginInternalData([
-			// 'payment_method'              => $this->paymentMethod,
 			'transaction_id'              => $paymentIntentId,
 			'payment_order_total'         => vmPSPlugin::getAmountValueInCurrency($this->totalAmount, $this->currencyId),
 			'payment_currency'            => $this->currencyCode,
