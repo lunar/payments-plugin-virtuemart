@@ -26,7 +26,7 @@ class plgVmPaymentLunarInstallerScript
 		if (!class_exists( 'VmConfig' )) {
 			require(JPATH_ROOT .'/administrator/components/com_virtuemart/helpers/config.php');
 		}
-		
+
 		VmConfig::loadConfig();	
 	}
 
@@ -81,31 +81,32 @@ class plgVmPaymentLunarInstallerScript
 	/** */
 	private function updateMobilePayMethod($manifestData)
 	{
-		// $this->db->setQuery("UPDATE `#__extensions` SET `manifest_cache`='" 
-		// 	. json_encode($manifestData) . "' WHERE `element`='" . $this->mobilePayName . "'")->execute();
-
-		$this->db->getQuery(true)
-			->update('#__extensions')
-			->set(['manifest_cache = ' . $this->db->quote(json_encode($manifestData))])
-			->where('element=' . $this->db->quote($this->mobilePayName));
+		$this->db->setQuery(
+			$this->db->getQuery(true)
+				->update('#__extensions')
+				->set(['manifest_cache = ' . $this->db->quote(json_encode($manifestData))])
+				->where('element=' . $this->db->quote($this->mobilePayName))
+		)->execute();
 	}
 
 	/** */
 	private function insertMobilePayMethod($manifestData)
 	{
-		$this->db->getQuery(true)
-			->insert('#__extensions')
-			->set([
-				'name = ' . $this->db->quote($manifestData['name']), 
-				'type = ' . $this->db->quote('plugin'), 
-				'element = ' . $this->db->quote($this->mobilePayName), 
-				'folder = ' . $this->db->quote('vmpayment'), 
-				'client_id = 0', 
-				'manifest_cache = ' . $this->db->quote(json_encode($manifestData)), 
-				'params = ' . $this->db->quote('{}'), 
-				'custom_data = ""', 
-				'system_data = ""',
-			]);
+		$this->db->setQuery(
+			$this->db->getQuery(true)
+				->insert('#__extensions')
+				->set([
+					'name = ' . $this->db->quote($manifestData['name']), 
+					'type = ' . $this->db->quote('plugin'), 
+					'element = ' . $this->db->quote($this->mobilePayName), 
+					'folder = ' . $this->db->quote('vmpayment'), 
+					'client_id = 0', 
+					'manifest_cache = ' . $this->db->quote(json_encode($manifestData)), 
+					'params = ' . $this->db->quote('{}'), 
+					'custom_data = ""', 
+					'system_data = ""',
+			])
+		)->execute();
 	}
 	
 }
