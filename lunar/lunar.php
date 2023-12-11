@@ -337,7 +337,7 @@ class plgVmPaymentLunar extends vmPSPlugin
         $this->args = [
             'integration' => [
                 'key' => $this->method->public_key,
-                'name' => $this->method->shop_title,
+                'name' => $this->method->shop_title ?? $this->app->get('sitename'),
                 'logo' => $this->method->logo_url,
             ],
             'amount' => [
