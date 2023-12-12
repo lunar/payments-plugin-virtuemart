@@ -12,41 +12,19 @@ $payment_element = $viewData['method']->payment_element ?? 'lunar';
         let methodId = '<?php echo $virtuemart_paymentmethod_id; ?>';
         let paymentElement = '<?php echo $payment_element; ?>';
         let methodIdChecked = jQuery("[name=virtuemart_paymentmethod_id]:checked").val() ?? 0;
-        let doNothing = false;
+        let $container = Virtuemart.containerSelector ? jQuery(Virtuemart.containerSelector) : jQuery('#cart-view');
 
-
-        // @TODO rethink/remove bellow listeners
-
-        jQuery("[name=virtuemart_paymentmethod_id]").on('click', function(e) {
-            doNothing = true;
-            methodIdChecked = jQuery(this).val();
-        });
+        $container.find('#checkoutForm').on('submit',function(e) {
         
-        jQuery('#tos').on('click', function(e) {
-            doNothing = true;
-        });
-        
-        jQuery('[name*="updatecart."]').on('click', function(e) {
-            doNothing = true;
-        });
-        
-        jQuery('[name*="delete."]').on('click', function(e) {
-            doNothing = true;
-        });
-
-
-        jQuery('#checkoutForm').on('submit', function(e) {
-
-            if (!paymentElement) {
-                return true;
-            }
-
-            if ((methodId !== methodIdChecked) || doNothing) {
-                return true;
-            }
-
+            let $selects = jQuery("[name=virtuemart_paymentmethod_id]"),
+                confirm = jQuery(this).find('input[name="confirm"]').length,
+                $btn = jQuery('#checkoutForm').find('button[name="confirm"]'),
+                btnTask = $btn.attr('task');
+            
+            if(confirm === 0 || btnTask === 'checkout') return true;
+            
             e.preventDefault();
-
+            
             jQuery.ajax({
                 type: 'POST',
                 url: Virtuemart.vmSiteurl + 
@@ -68,7 +46,8 @@ $payment_element = $viewData['method']->payment_element ?? 'lunar';
                     alert(error);
                 }
             });
+            
+            return false;
         });
-
     });
 </script>
