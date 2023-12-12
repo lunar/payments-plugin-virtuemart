@@ -158,9 +158,9 @@ trait LunarPluginTrait
 	/**
 	 * @return string
 	 */
-	public function getPluginVersion() 
+	protected function getPluginVersion() 
     {
-		$xmlStr = file_get_contents(dirname(__DIR__).'/' . $this->_name . '.xml');
+		$xmlStr = file_get_contents($this->_xmlFile);
 		$xmlObj = simplexml_load_string($xmlStr);
 		return (string) $xmlObj->version;
 	}
