@@ -1,11 +1,21 @@
-<?php defined ('_JEXEC') or die(); ?>
+<?php 
+defined ('_JEXEC') or die();
+
+$virtuemart_paymentmethod_id = $viewData['method']->virtuemart_paymentmethod_id ?? 0;
+$payment_element = $viewData['method']->payment_element ?? 'lunar';
+?>
 
 <script type="text/javascript">
+
     jQuery(document).ready(function() {
 
-        let methodId = '<?php echo $viewData['method']->virtuemart_paymentmethod_id; ?>';
-        let methodIdChecked = jQuery("[name=virtuemart_paymentmethod_id]:checked").val();
+        let methodId = '<?php echo $virtuemart_paymentmethod_id; ?>';
+        let paymentElement = '<?php echo $payment_element; ?>';
+        let methodIdChecked = jQuery("[name=virtuemart_paymentmethod_id]:checked").val() ?? 0;
         let doNothing = false;
+
+
+        // @TODO rethink/remove bellow listeners
 
         jQuery("[name=virtuemart_paymentmethod_id]").on('click', function(e) {
             doNothing = true;
@@ -15,11 +25,24 @@
         jQuery('#tos').on('click', function(e) {
             doNothing = true;
         });
+        
+        jQuery('[name*="updatecart."]').on('click', function(e) {
+            doNothing = true;
+        });
+        
+        jQuery('[name*="delete."]').on('click', function(e) {
+            doNothing = true;
+        });
+
 
         jQuery('#checkoutForm').on('submit', function(e) {
 
+            if (!paymentElement) {
+                return true;
+            }
+
             if ((methodId !== methodIdChecked) || doNothing) {
-                return;
+                return true;
             }
 
             e.preventDefault();
@@ -28,7 +51,8 @@
                 type: 'POST',
                 url: Virtuemart.vmSiteurl + 
                     'index.php?option=com_virtuemart&view=plugin&type=vmpayment' +
-                    '&name=lunar&action=redirect&format=json&pm=' + methodIdChecked,
+                    '&name=' + paymentElement +
+                    '&action=redirect&format=json&pm=' + methodIdChecked,
                 async: false,
                 dataType: 'json',
                 success: function(response) {
