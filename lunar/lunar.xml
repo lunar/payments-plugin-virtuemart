@@ -49,11 +49,11 @@
                 <field type="text" name="shop_title" default="" label="VMPAYMENT_LUNAR_SHOP_TITLE"
                        description="VMPAYMENT_LUNAR_SHOP_TITLE_DESCRIPTION"/>
                 
-                <field type="list" name="checkout_mode" label="VMPAYMENT_LUNAR_CHECKOUT_MODE" default=""
+                <!-- <field type="list" name="checkout_mode" label="VMPAYMENT_LUNAR_CHECKOUT_MODE" default=""
                        description="VMPAYMENT_LUNAR_CHECKOUT_MODE_DESCRIPTION">
                     <option value="before">Payment before order created</option>
                     <option value="after">Redirect to payment page after order created</option>
-                </field>
+                </field> -->
                 
                 <field type="list" name="capture_mode" label="VMPAYMENT_LUNAR_CAPTURE_MODE" default=""
                        description="VMPAYMENT_LUNAR_CAPTURE_MODE_DESCRIPTION">

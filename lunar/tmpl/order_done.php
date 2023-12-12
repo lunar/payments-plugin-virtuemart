@@ -1,11 +1,4 @@
-<?php
-defined ('_JEXEC') or die();
-
-$method = $viewData["method"];
-$cart = $viewData["cart"];
-$billingDetail = $viewData["billingDetails"];
-
-?>
+<?php defined ('_JEXEC') or die(); ?>
 
 <div id="lunar-order-info">
 	<div class="post_payment_payment_name" style="width: 100%">
@@ -14,7 +7,7 @@ $billingDetail = $viewData["billingDetails"];
 
 	<div class="post_payment_order_number" style="width: 100%">
 		<span class="post_payment_order_number_title"><?php echo vmText::_ ('COM_VIRTUEMART_ORDER_NUMBER'); ?> </span>
-		<?php echo  $billingDetail->order_number; ?>
+		<?php echo  $viewData["order_number"]; ?>
 	</div>
 
 	<div class="post_payment_order_total" style="width: 100%">

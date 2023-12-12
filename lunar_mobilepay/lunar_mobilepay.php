@@ -11,5 +11,5 @@ if ( ! class_exists( 'plgVmPaymentLunar')) {
  */
 class plgVmPaymentLunar_Mobilepay extends plgVmPaymentLunar
 {
-	protected string $paymentMethod = 'mobilePay';
+	
 }

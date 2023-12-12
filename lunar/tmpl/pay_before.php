@@ -3,6 +3,7 @@ defined ('_JEXEC') or die();
 
 $virtuemart_paymentmethod_id = $viewData['method']->virtuemart_paymentmethod_id ?? 0;
 $payment_element = $viewData['method']->payment_element ?? 'lunar';
+
 ?>
 
 <script type="text/javascript">
@@ -10,9 +11,9 @@ $payment_element = $viewData['method']->payment_element ?? 'lunar';
     jQuery(document).ready(function() {
 
         let methodId = '<?php echo $virtuemart_paymentmethod_id; ?>';
-        let paymentElement = '<?php echo $payment_element; ?>';
         let methodIdChecked = jQuery("[name=virtuemart_paymentmethod_id]:checked").val() ?? 0;
         let $container = Virtuemart.containerSelector ? jQuery(Virtuemart.containerSelector) : jQuery('#cart-view');
+        let paymentInitialized = false;
 
         $container.find('#checkoutForm').on('submit',function(e) {
         
@@ -21,20 +22,23 @@ $payment_element = $viewData['method']->payment_element ?? 'lunar';
                 $btn = jQuery('#checkoutForm').find('button[name="confirm"]'),
                 btnTask = $btn.attr('task');
             
-            if(confirm === 0 || btnTask === 'checkout') return true;
+            if (confirm === 0 || btnTask === 'checkout' || paymentInitialized) {
+                return true;
+            }
             
             e.preventDefault();
-            
+         
             jQuery.ajax({
                 type: 'POST',
                 url: Virtuemart.vmSiteurl + 
                     'index.php?option=com_virtuemart&view=plugin&type=vmpayment' +
-                    '&name=' + paymentElement +
+                    '&name=' + '<?php echo $payment_element; ?>' +
                     '&action=redirect&format=json&pm=' + methodIdChecked,
                 async: false,
                 dataType: 'json',
                 success: function(response) {
                     if (response.hasOwnProperty('redirectUrl')) {
+                        paymentInitialized = true;
                         window.location.replace(response.redirectUrl);
                     }
                     if (response.hasOwnProperty('error')) {
@@ -46,7 +50,8 @@ $payment_element = $viewData['method']->payment_element ?? 'lunar';
                     alert(error);
                 }
             });
-            
+
+            // e.preventDefault();
             return false;
         });
     });

@@ -88,7 +88,6 @@ trait LunarPluginTrait
 	 */
 	public function plgVmDisplayListFEPayment(VirtueMartCart $cart, $selected = 0, &$htmlIn)
     {
-		$this->_isInList = true;
 		return $this->displayListFE($cart, $selected, $htmlIn);
 
 	}
@@ -145,7 +144,7 @@ trait LunarPluginTrait
 		return $this->onShowOrderPrint($order_number, $method_id);
 	}
 
-	public function plgVmDeclarePluginParamsPaymentVM3( &$data) 
+	public function plgVmDeclarePluginParamsPaymentVM3(&$data) 
     {
 		return $this->declarePluginParams('payment', $data);
 	}
