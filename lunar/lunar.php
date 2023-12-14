@@ -28,7 +28,10 @@ class plgVmPaymentLunar extends vmPSPlugin
 	const REMOTE_URL = 'https://pay.lunar.money/?id=';
     const TEST_REMOTE_URL = 'https://hosted-checkout-git-develop-lunar-app.vercel.app/?id=';
 	
-	protected string $paymentMethod = '';
+	const CARD_METHOD = 'card';
+	const MOBILEPAY_METHOD = 'mobilePay';
+
+	protected string $paymentMethodCode;
 
 	protected $app;
 	protected $method;
@@ -45,35 +48,33 @@ class plgVmPaymentLunar extends vmPSPlugin
 	protected ?string $errorMessage = null;
 	protected string $intentIdKey = '_lunar_intent_id';
 	protected bool $testMode = false;
+	protected bool $isMobielPay = false;
 
 
 	public function __construct(&$subject, $config) {
 
 		parent::__construct($subject, $config);
 
-		// vmdebug('Plugin stuff',$subject, $config);
 		$this->_loggable = true;
 		$this->tableFields = array_keys($this->getTableSQLFields());
 		$this->_tablepkey = 'id';
 		$this->_tableId = 'id';
 
 		$varsToPush = $this->getVarsToPush();
-
 		$this->addVarsToPushCore($varsToPush);
 		$this->setConfigParameterable($this->_configTableFieldName, $varsToPush);
 		$this->setConvertable(array('min_amount','max_amount','cost_per_transaction','cost_min_transaction'));
 		$this->setConvertDecimal(array('min_amount','max_amount','cost_per_transaction','cost_min_transaction','cost_percent_total'));
-		
+
 		vmLanguage::loadJLang('com_virtuemart', true);
 		vmLanguage::loadJLang('com_virtuemart_orders', true);
 
+		// adding script to hide config id if not mobilePay method
+		// the "showon" field attribute does not work - maybe we need to load some vm scripts there
+		$this->maybeAddAdminScript();
+
 		$this->app = Factory::getApplication();
 		$this->testMode = !!$this->app->input->cookie->get('lunar_testmode'); // same with !!$_COOKIE['lunar_testmode']
-	}
-
-	private function setApiClient()
-	{
-		$this->apiClient = new ApiClient($this->method->api_key, null, $this->testMode);
 	}
 
 	private function init()
@@ -83,16 +84,8 @@ class plgVmPaymentLunar extends vmPSPlugin
 			$this->cart->prepareCartData();
 		}
 
-		$this->setApiClient();
+		$this->apiClient = new ApiClient($this->method->api_key, null, $this->testMode);
 		
-		$this->setMethodNameFromElement($this->method);
-		
-		// bellow we set again params from xml file
-		// $varsToPush = $this->getVarsToPush();
-		// $this->addVarsToPushCore($varsToPush,1);
-		// $this->setConfigParameterable($this->_configTableFieldName, $varsToPush);
-		// end
-
 		self::getPaymentCurrency($this->method);
 
 		$this->maybeSetPaymentInfo();
@@ -108,6 +101,27 @@ class plgVmPaymentLunar extends vmPSPlugin
 	}
 
 	/**
+	 * 
+	 */
+	private function checkMethodIsSelected($methodId)
+	{
+		if (!$this->method = $this->getVmPluginMethod($methodId)) {
+			return $this->check = null;
+		}
+
+		$this->isMobielPay = self::MOBILEPAY_METHOD === $this->method->payment_method;
+		$this->paymentMethodCode = $this->isMobielPay ? self::MOBILEPAY_METHOD : self::CARD_METHOD;
+
+		$this->init();
+
+		if (!$this->selectedThisElement($this->method->payment_element)) {
+			return $this->check = false;
+		}
+
+		return true;
+	}
+
+	/**
 	 * This function is triggered when the user click on the Confirm Purchase button on cart view.
      * You can store the transaction/order related details using this function.
      * You can set your html with a variable name html at the end of this function, to be shown on thank you message.
@@ -119,8 +133,6 @@ class plgVmPaymentLunar extends vmPSPlugin
 		if (!$this->checkMethodIsSelected($cart->virtuemart_paymentmethod_id)) {
 			return $this->check;
 		}
-
-		// $this->init();
 
 		$this->setArgs($this->billingDetails->virtuemart_order_id);
 		
@@ -209,20 +221,20 @@ class plgVmPaymentLunar extends vmPSPlugin
 		
 		// }
 
-		$html = $this->renderByLayout('order_done', [
-			'method' => $this->method,
-			// 'cart' => $this->cart,
-			'order_number' => $this->billingDetails->order_number,
-			'payment_name' => $this->renderPluginName($this->method),
-			'displayTotalInPaymentCurrency' => $this->getPriceWithCurrency(),
-			'orderlink' => $this->getOrderLink(),
-		]);
+		// $html = $this->renderByLayout('order_done', [
+		// 	'method' => $this->method,
+		// 	// 'cart' => $this->cart,
+		// 	'order_number' => $this->billingDetails->order_number,
+		// 	'payment_name' => $this->renderPluginName($this->method),
+		// 	'displayTotalInPaymentCurrency' => $this->getPriceWithCurrency(),
+		// 	'orderlink' => $this->getOrderLink(),
+		// ]);
 
-		$this->cart->emptyCart();
+		// $this->cart->emptyCart();
 
-		$this->setPaymentIntentCookie('', 1);
+		// $this->setPaymentIntentCookie('', 1);
 
-		// $this->finalizeOrder($html);
+		$this->finalizeOrder($html);
 
 		return true;
 	}
@@ -331,16 +343,16 @@ class plgVmPaymentLunar extends vmPSPlugin
             'redirectUrl' => JURI::root()
 							.'index.php?option=com_virtuemart&view=vmplg&task=pluginresponsereceived' 
 							. '&pm=' . $this->method->virtuemart_paymentmethod_id,
-            'preferredPaymentMethod' => $this->paymentMethod,
+            'preferredPaymentMethod' => $this->paymentMethodCode,
         ];
 
-        if ('mobilePay' == $this->paymentMethod) {
+        if ($this->isMobielPay) {
             $this->args['mobilePayConfiguration'] = [
                 'configurationID' => $this->method->configuration_id,
                 'logo' => $this->method->logo_url,
             ];
         }
-
+	
         if ($this->testMode) {
             $this->args['test'] = $this->getTestObject();
         }
@@ -516,35 +528,38 @@ class plgVmPaymentLunar extends vmPSPlugin
 		}
 		self::getPaymentCurrency($this->method);
 
-		$this->setMethodNameFromElement($this->method);
-
 		$paymentCurrencyId = $this->getCurrencyId();
 	}
 
-	/**
-	 * 
-	 */
-	private function checkMethodIsSelected($methodId)
+
+	/**  */
+	private function maybeAddAdminScript()
 	{
-		$this->method = $this->getVmPluginMethod($methodId);
-		
-		/** 
-		 * The method loaded from DB above is different from the one from cache
-		 * So, we set these attributes again to be even with the method loaded
-		 */
-		$this->_name = $this->method->payment_element;	
-		$this->_xmlFile = dirname(__DIR__).DS.$this->_name.DS.$this->_name.'.xml';
-
-		$this->init();
-
-		if (!$this->method) {
-			return $this->check = null;
-		}
-		if (!$this->selectedThisElement($this->method->payment_element)) {
-			return $this->check = false;
+		if (!$this->app->isClient('administrator')) {
+			return;
 		}
 
-		return true;
+		Factory::getDocument()->addScriptDeclaration('
+			jQuery(document).ready(function( $ ) {
+				
+				let radio0 = jQuery("#params_payment_method0");
+				let radio1 = jQuery("#params_payment_method1");
+
+				radio1.is(":checked") ? manageConfigIdField(radio1.val()) : manageConfigIdField(radio0.val());
+								
+				radio0.on("change", function() { manageConfigIdField($(this).val()) });
+				radio1.on("change", function() { manageConfigIdField($(this).val()) });
+
+				function manageConfigIdField(methodCode) {
+					let element = $("#params_configuration_id").closest(".control-group");
+					if ("mobilePay" === methodCode) {
+						element.show() 
+					} else {
+						element.hide();
+					}
+				}
+			});
+		');
 	}
 
 	/**
@@ -573,8 +588,6 @@ class plgVmPaymentLunar extends vmPSPlugin
 
 	protected function renderPluginName($plugin)
 	{
-		$this->setMethodNameFromElement($plugin);
-
 		$html ='
 			<style>
 				.lunar-wrapper .payment_logo img {
@@ -594,7 +607,7 @@ class plgVmPaymentLunar extends vmPSPlugin
 			$cards = $plugin->accepted_cards;
 		}
 		
-		if ('mobilePay' == $this->paymentMethod) {
+		if ($this->isMobielPay) {
 			$logoPath = JURI::root().'plugins/vmpayment/lunar/images/mobilepay-logo.png'; // used PNG files because TCPDF doesn't like svg 
 			$html .= sprintf('<img src="%s" alt="logo" />', $logoPath);
 		} else {
@@ -648,23 +661,10 @@ class plgVmPaymentLunar extends vmPSPlugin
 	/**
 	 * Update lunar on update status
 	 */
-	public function plgVmOnUpdateOrderPayment( $order, $old_order_status) {
 
 		if (!$this->checkMethodIsSelected($order->virtuemart_paymentmethod_id)) {
 			return $this->check;
 		}
-
-
-		if (
-			'instant' !== $this->method->capture_mode
-			&& $order->order_status === $this->method->status_capture
-		) {
-			return null;
-		}
-
-		// if ('before' == $this->method->checkout_mode) {
-		// 	return null;
-		// }
 
 		// //@TODO half refund $order->order_status != $method->status_half_refund
 
@@ -688,9 +688,6 @@ class plgVmPaymentLunar extends vmPSPlugin
 		if (!($lunarTransaction = $this->getDataByOrderId($orderId))) {
 			return null;
 		}
-
-		$this->setApiClient();
-		self::getPaymentCurrency($this->method);
 
 		$paymentIntentId = $lunarTransaction->transaction_id;
 		$this->currencyCode = $this->getCurrencyCode();
@@ -718,7 +715,9 @@ class plgVmPaymentLunar extends vmPSPlugin
 			$this->redirectBackWithNotification($e->getMessage(), $redirectUrl ?? null);
 		}
 
-		$this->app->enqueueMessage("Lunar API action - $action : completed successfully");
+		if ($this->app->isClient('administrator')) {
+			$this->app->enqueueMessage("Lunar API action - $action : completed successfully");
+		}
 	}
 
 	/**
@@ -793,16 +792,6 @@ class plgVmPaymentLunar extends vmPSPlugin
             ),
         ];
     }
-
-		
-	/**
-	 * Used for ajax actions
-	 */
-	private function setMethodNameFromElement($method)
-    {
-		$this->paymentMethod = 'lunar_mobilepay' == $method->payment_element ? 'mobilePay' : 'card';
-	}
-
 		
 	/**
 	 * Used for ajax actions

@@ -25,6 +25,7 @@ trait LunarPluginTrait
 		return [
 			'id'                          => 'INT(1) UNSIGNED NOT NULL AUTO_INCREMENT',
 			'virtuemart_order_id'         => 'INT(1) UNSIGNED NOT NULL',
+			'payment_method'              => 'CHAR(50)',
 			'transaction_id'              => 'VARCHAR(1000)',
 			'payment_order_total'         => 'DECIMAL(15,5) NOT NULL DEFAULT \'0.00000\'',
 			'payment_currency'            => 'CHAR(3)',

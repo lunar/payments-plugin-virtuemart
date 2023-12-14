@@ -27,7 +27,23 @@
 				
                 <field name="checkConditionsCore" value="1" default="1" type="hidden"/>
                 
-                <field type="text" name="title" default="Card" label="VMPAYMENT_LUNAR_TITLE"/>
+                <field
+                    name="payment_method"
+                    type="radio"
+                    label="VMPAYMENT_LUNAR_PAYMENT_METHOD"
+                    class="btn-group "
+                    default="card"
+                    >
+                    <option value="card">Card</option>
+                    <option value="mobilePay">MobilePay</option>
+                </field>
+
+                <!-- <field name="payment_method" type="list" default="card" label="VMPAYMENT_LUNAR_PAYMENT_METHOD">
+                    <option value="card">Card</option>
+                    <option value="mobilePay">MobilePay</option>
+                </field> -->
+
+                <field type="text" name="title" default="" label="VMPAYMENT_LUNAR_TITLE"/>
                 
                 <field name="active" type="list" default="1" label="VMPAYMENT_LUNAR_ACTIVE">
                     <option value="1">Yes</option>
@@ -35,15 +51,16 @@
                 </field>
                 
                 <field type="textarea" name="description" label="VMPAYMENT_LUNAR_DESCRIPTION"
-                       default="Secure payment with card via © Lunar" rows="5" cols="10"/>
+                       default="Secure payment via © Lunar" rows="5" cols="10"/>
 
                 <field type="vmtitle" default="VMPAYMENT_LUNAR_SETTINGS" description=""/>
 
                 <field type="text" name="api_key" label="VMPAYMENT_LUNAR_API_KEY" default="" description="VMPAYMENT_LUNAR_KEYS_DESCRIPTION"/>
                 
                 <field type="text" name="public_key" label="VMPAYMENT_LUNAR_PUBLIC_KEY" default="" description="VMPAYMENT_LUNAR_KEYS_DESCRIPTION"/>
-                
-                <field type="text" name="configuration_id" label="VMPAYMENT_LUNAR_CONFIG_ID" default="" description="VMPAYMENT_LUNAR_CONFIG_ID_DESCRIPTION"/>
+
+                <!-- <field type="text" name="configuration_id" showon="payment_method:mobilePay" label="VMPAYMENT_LUNAR_CONFIG_ID" default="" description="VMPAYMENT_LUNAR_CONFIG_ID_DESCRIPTION" /> -->
+                <field type="text" name="configuration_id" label="VMPAYMENT_LUNAR_CONFIG_ID" default="" description="VMPAYMENT_LUNAR_CONFIG_ID_DESCRIPTION" />
                 
                 <field type="text" name="logo_url" label="VMPAYMENT_LUNAR_LOGO_URL" default="" description="VMPAYMENT_LUNAR_LOGO_URL_DESCRIPTION"/>
 
