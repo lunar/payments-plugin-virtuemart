@@ -28,7 +28,7 @@ class plgVmPaymentLunar extends vmPSPlugin
 	const REMOTE_URL = 'https://pay.lunar.money/?id=';
     const TEST_REMOTE_URL = 'https://hosted-checkout-git-develop-lunar-app.vercel.app/?id=';
 	
-	protected string $paymentMethod = 'card';
+	protected string $paymentMethod = '';
 
 	protected $app;
 	protected $method;
@@ -47,15 +47,9 @@ class plgVmPaymentLunar extends vmPSPlugin
 	protected bool $testMode = false;
 
 
-	public function __construct(& $subject, $config) {
-		parent::__construct($subject, $config);
+	public function __construct(&$subject, $config) {
 
-		/**
-		 * @TODO we need to make a loader class, to load method instead of class inheritance from this
-		 * In the checkMethodIsSelected() method we (re)set the following attributes:
-		 * $this->_xmlFile
-		 * $this->_name
-		 */
+		parent::__construct($subject, $config);
 
 		// vmdebug('Plugin stuff',$subject, $config);
 		$this->_loggable = true;
@@ -64,7 +58,8 @@ class plgVmPaymentLunar extends vmPSPlugin
 		$this->_tableId = 'id';
 
 		$varsToPush = $this->getVarsToPush();
-		$this->addVarsToPushCore($varsToPush,1);
+
+		$this->addVarsToPushCore($varsToPush);
 		$this->setConfigParameterable($this->_configTableFieldName, $varsToPush);
 		$this->setConvertable(array('min_amount','max_amount','cost_per_transaction','cost_min_transaction'));
 		$this->setConvertDecimal(array('min_amount','max_amount','cost_per_transaction','cost_min_transaction','cost_percent_total'));
@@ -83,12 +78,22 @@ class plgVmPaymentLunar extends vmPSPlugin
 
 	private function init()
 	{
-		$this->cart = VirtueMartCart::getCart(false);
-		$this->cart->prepareCartData();
+		$this->cart = VirtueMartCart::getCart();
+		if (!isset($this->cart->cartPrices) or empty($this->cart->cartPrices)) {
+			$this->cart->prepareCartData();
+		}
 
 		$this->setApiClient();
+		
+		$this->setMethodNameFromElement($this->method);
+		
+		// bellow we set again params from xml file
+		// $varsToPush = $this->getVarsToPush();
+		// $this->addVarsToPushCore($varsToPush,1);
+		// $this->setConfigParameterable($this->_configTableFieldName, $varsToPush);
+		// end
 
-		$this->getPaymentCurrency($this->method);
+		self::getPaymentCurrency($this->method);
 
 		$this->maybeSetPaymentInfo();
 
@@ -100,36 +105,6 @@ class plgVmPaymentLunar extends vmPSPlugin
 		$this->emailCurrency = shopFunctions::getCurrencyByID($emailCurrencyId, 'currency_code_3');
 
 		$this->vmOrderModel = VmModel::getModel('orders');
-	}
-	
-	/**
-	 * Used for ajax actions
-	 */
-	public function plgVmOnSelfCallFE($type, $name, &$render)
-    {
-		if('redirect' == vRequest::getCmd('action')) {
-
-			if (!$this->checkMethodIsSelected(vRequest::getVar('pm'))) {
-				echo $this->getJsonErrorResponse('Wrong payment method ID');
-				jexit();
-			}
-
-			$this->init();
-
-			$this->setArgs();
-
-			$paymentIntentId = $this->createPaymentIntent();
-			
-			if ($this->errorMessage) {
-				echo $this->getJsonErrorResponse($this->errorMessage);
-				jexit();
-			}
-
-			echo json_encode([
-				'redirectUrl' => ($this->testMode ? self::TEST_REMOTE_URL : self::REMOTE_URL) . $paymentIntentId
-			]);
-			jexit();
-		}
 	}
 
 	/**
@@ -145,7 +120,7 @@ class plgVmPaymentLunar extends vmPSPlugin
 			return $this->check;
 		}
 
-		$this->init();
+		// $this->init();
 
 		$this->setArgs($this->billingDetails->virtuemart_order_id);
 		
@@ -162,17 +137,11 @@ class plgVmPaymentLunar extends vmPSPlugin
 
 
 	private function createPaymentIntent()
-	{
-		$paymentIntentId = $this->getPaymentIntentCookie();
-	
+	{	
 		try {
-			if ($paymentIntentId) {
-				// check if retrieved payment intent is for the current cart/order
-				$this->fetchApiTransaction($paymentIntentId);
-			} else {
-				$paymentIntentId = $this->apiClient->payments()->create($this->args);
-				$this->setPaymentIntentCookie($paymentIntentId);
-			}
+			$paymentIntentId = $this->apiClient->payments()->create($this->args);
+			$this->setPaymentIntentCookie($paymentIntentId);
+
 		} catch(ApiException $e) {
 			$this->errorMessage = $e->getMessage();
 			Log::add('LUNAR EXCEPTION: ' . $e->getMessage(), Log::ERROR);
@@ -184,7 +153,7 @@ class plgVmPaymentLunar extends vmPSPlugin
 			return null;
 		}
 
-		if (! $paymentIntentId) {
+		if (empty($paymentIntentId)) {
 			$this->errorMessage = 'An error occurred creating payment intent. Please try again or contact system administrator.';
 			return null;
 		}
@@ -200,24 +169,15 @@ class plgVmPaymentLunar extends vmPSPlugin
 	 */
 	public function plgVmOnPaymentResponseReceived(&$html, &$paymentResponse)
 	{
-		$orderNumber = vRequest::getVar('order_number');
-		$methodId = vRequest::getVar('pm');
-
-		if (!$this->checkMethodIsSelected($methodId)) {
+		if (!$this->checkMethodIsSelected(vRequest::getVar('pm'))) {
 			// return $this->check;
 			$this->redirectBackWithNotification('Bad payment method');
 		}
 
-		// @TODO maybe we'll remove this if we don't use it
-		if (!vRequest::getVar('lunar_method')) {
-			$this->redirectBackWithNotification('No payment method name provided.');
-		}
-
-		$this->init();
+		// $this->init();
 
 		$paymentIntentId = $this->getPaymentIntentCookie();
-
-		if (! $paymentIntentId) {
+		if (empty($paymentIntentId)) {	
 			$this->redirectBackWithNotification('No payment intent id found.');
 		}
 
@@ -227,42 +187,49 @@ class plgVmPaymentLunar extends vmPSPlugin
 			$this->redirectBackWithNotification($e->getMessage());
 		}
 
-		if (!$orderNumber && 'before' == $this->method->checkout_mode) {
-			$orderId = $this->vmOrderModel->createOrderFromCart($this->cart);
-			/** @var VirtueMartModelOrders $order */
-			$order = $this->vmOrderModel->getOrder($orderId);
+		// if ('before' == $this->method->checkout_mode) {
+		// 	$orderId = $this->vmOrderModel->createOrderFromCart($this->cart);
+		// 	/** @var VirtueMartModelOrders $order */
+		// 	$order = $this->vmOrderModel->getOrder($orderId);
 			
-			if (!isset($order['details'])) {
-				$this->redirectBackWithNotification('Invalid order');
-			}
-
-			$this->billingDetails = $order['details']['BT'];
-			
-			$this->storeDbLunarTransaction($paymentIntentId);
-		}
-		
-		// if ('instant' === $this->method->capture_mode) {
-		// 	try {
-		// 		$this->apiClient->payments()->capture($paymentIntentId, [
-		// 			'amount' => [
-		// 				'currency' => $this->currencyCode,
-		// 				'decimal' => $this->totalAmount,
-		// 			],
-		// 		]);
-		// 	} catch(ApiException $e) {
-		// 		$this->redirectBackWithNotification($e->getMessage());
+		// 	if (!isset($order['details'])) {
+		// 		$this->redirectBackWithNotification('Invalid order');
 		// 	}
+
+		// 	$this->billingDetails = $order['details']['BT'];
+			
+		// 	$this->storeDbLunarTransaction($paymentIntentId);
+
+		//  $this->finalizeOrder($html);
+		
+		// } else {
+		
+			$order = $this->vmOrderModel->getOrder($this->cart->virtuemart_order_id);
+			$this->billingDetails = $order['details']['BT'];
+		
 		// }
 
-		$order = $this->vmOrderModel->getOrder($this->cart->virtuemart_order_id);
-		$this->billingDetails = $order['details']['BT'];
+		$html = $this->renderByLayout('order_done', [
+			'method' => $this->method,
+			// 'cart' => $this->cart,
+			'order_number' => $this->billingDetails->order_number,
+			'payment_name' => $this->renderPluginName($this->method),
+			'displayTotalInPaymentCurrency' => $this->getPriceWithCurrency(),
+			'orderlink' => $this->getOrderLink(),
+		]);
 
-		$this->finalizeOrder($html);
+		$this->cart->emptyCart();
+
+		$this->setPaymentIntentCookie('', 1);
+
+		// $this->finalizeOrder($html);
 
 		return true;
 	}
 	
-	/** */
+	/**
+	 * Used for before_order flow
+	 */
 	private function finalizeOrder(&$html)
 	{
 		$order['order_status'] = $this->getNewStatus();
@@ -284,9 +251,7 @@ class plgVmPaymentLunar extends vmPSPlugin
 		$this->vmOrderModel->updateStatusForOneOrder($this->billingDetails->virtuemart_order_id, $order, true);
 
 		$html = $this->renderByLayout('order_done', [
-			'method'=> $this->method,
-			'cart'=> $this->cart,
-			'billingDetails' => $this->billingDetails,
+			'order_number' => $this->billingDetails->order_number,
 			'payment_name' => $this->renderPluginName($this->method),
 			'displayTotalInPaymentCurrency' => $this->getPriceWithCurrency(),
 			'orderlink' => $this->getOrderLink(),
@@ -330,9 +295,7 @@ class plgVmPaymentLunar extends vmPSPlugin
      * SET ARGS
      */
     private function setArgs($orderId = null)
-    {
-		$this->getPaymentCurrency($this->method);
-		
+    {		
 		$billingDetails = $this->cart->BT;
 
         $this->args = [
@@ -367,9 +330,7 @@ class plgVmPaymentLunar extends vmPSPlugin
             ],
             'redirectUrl' => JURI::root()
 							.'index.php?option=com_virtuemart&view=vmplg&task=pluginresponsereceived' 
-							. '&order_number=' . $this->cart->order_number 
-							. '&pm=' . $this->method->virtuemart_paymentmethod_id 
-							. '&lunar_method=' . $this->paymentMethod,
+							. '&pm=' . $this->method->virtuemart_paymentmethod_id,
             'preferredPaymentMethod' => $this->paymentMethod,
         ];
 
@@ -402,7 +363,6 @@ class plgVmPaymentLunar extends vmPSPlugin
     {
 		$redirectUrl = $redirectUrl ?? Route::_('index.php?option=com_virtuemart&view=cart');
 
-		$this->setPaymentIntentCookie('', 1);
 		$this->app->enqueueMessage($errorMessage, 'error');
 		$this->app->redirect($redirectUrl, 302);
     }
@@ -410,7 +370,6 @@ class plgVmPaymentLunar extends vmPSPlugin
     /** */
     private function getJsonErrorResponse($errorMessage)
     {
-		$this->setPaymentIntentCookie('', 1);
 		return json_encode(['error' => $errorMessage]);
     }
 
@@ -531,7 +490,6 @@ class plgVmPaymentLunar extends vmPSPlugin
 		if (!($paymentTable = $this->getDataByOrderId($virtuemart_order_id))) {
 			return null;
 		}
-		vmLanguage::loadJLang('com_virtuemart');
 
 		$orderTotalInPaymentCurrency = number_format($paymentTable->payment_order_total, 2);
 
@@ -556,8 +514,9 @@ class plgVmPaymentLunar extends vmPSPlugin
 		if (!$this->checkMethodIsSelected($virtuemart_paymentmethod_id)) {
 			return $this->check;
 		}
+		self::getPaymentCurrency($this->method);
 
-		$this->getPaymentCurrency($this->method);
+		$this->setMethodNameFromElement($this->method);
 
 		$paymentCurrencyId = $this->getCurrencyId();
 	}
@@ -568,14 +527,16 @@ class plgVmPaymentLunar extends vmPSPlugin
 	private function checkMethodIsSelected($methodId)
 	{
 		$this->method = $this->getVmPluginMethod($methodId);
-
+		
 		/** 
 		 * The method loaded from DB above is different from the one from cache
 		 * So, we set these attributes again to be even with the method loaded
 		 */
 		$this->_name = $this->method->payment_element;	
 		$this->_xmlFile = dirname(__DIR__).DS.$this->_name.DS.$this->_name.'.xml';
-	
+
+		$this->init();
+
 		if (!$this->method) {
 			return $this->check = null;
 		}
@@ -612,6 +573,8 @@ class plgVmPaymentLunar extends vmPSPlugin
 
 	protected function renderPluginName($plugin)
 	{
+		$this->setMethodNameFromElement($plugin);
+
 		$html ='
 			<style>
 				.lunar-wrapper .payment_logo img {
@@ -647,10 +610,10 @@ class plgVmPaymentLunar extends vmPSPlugin
 		$html .= '</div></div>';
 		$html .= '<div class="lunar_desc" >' . $plugin->description . '</div>';
 
-		if ('before' === $plugin->checkout_mode && 'cart' === vRequest::getCmd('view', '')) {
-			// $html .="<pre>".print_r($plugin,TRUE)."</pre>";
-			$html .= $this->renderByLayout('pay_before', ['method'=> $plugin]);
-		}
+		// if ('before' === $plugin->checkout_mode && 'cart' === vRequest::getCmd('view', '')) {
+		// 	// $html .="<pre>".print_r($plugin,TRUE)."</pre>";
+		// 	$html .= $this->renderByLayout('pay_before', ['method'=> $plugin]);
+		// }
 
 		return $html;
 	}
@@ -691,6 +654,18 @@ class plgVmPaymentLunar extends vmPSPlugin
 			return $this->check;
 		}
 
+
+		if (
+			'instant' !== $this->method->capture_mode
+			&& $order->order_status === $this->method->status_capture
+		) {
+			return null;
+		}
+
+		// if ('before' == $this->method->checkout_mode) {
+		// 	return null;
+		// }
+
 		// //@TODO half refund $order->order_status != $method->status_half_refund
 
 		$action = '';
@@ -715,7 +690,7 @@ class plgVmPaymentLunar extends vmPSPlugin
 		}
 
 		$this->setApiClient();
-		$this->getPaymentCurrency($this->method);
+		self::getPaymentCurrency($this->method);
 
 		$paymentIntentId = $lunarTransaction->transaction_id;
 		$this->currencyCode = $this->getCurrencyCode();
@@ -818,4 +793,49 @@ class plgVmPaymentLunar extends vmPSPlugin
             ),
         ];
     }
+
+		
+	/**
+	 * Used for ajax actions
+	 */
+	private function setMethodNameFromElement($method)
+    {
+		$this->paymentMethod = 'lunar_mobilepay' == $method->payment_element ? 'mobilePay' : 'card';
+	}
+
+		
+	/**
+	 * Used for ajax actions
+	 */
+	public function plgVmOnSelfCallFE($type, $name, &$render)
+    {
+		/*
+		* @TODO !!!
+		* If we'll need to activate before_order flow, we need to check if everything is working 
+		*/
+
+		// if('redirect' == vRequest::getCmd('action')) {
+
+		// 	if (!$this->checkMethodIsSelected(vRequest::getVar('pm'))) {
+		// 		echo $this->getJsonErrorResponse('Wrong payment method ID');
+		// 		jexit();
+		// 	}
+
+		// 	// $this->init();
+
+		// 	$this->setArgs();
+
+		// 	$paymentIntentId = $this->createPaymentIntent();
+			
+		// 	if ($this->errorMessage) {
+		// 		echo $this->getJsonErrorResponse($this->errorMessage);
+		// 		jexit();
+		// 	}
+
+		// 	echo json_encode([
+		// 		'redirectUrl' => ($this->testMode ? self::TEST_REMOTE_URL : self::REMOTE_URL) . $paymentIntentId
+		// 	]);
+		// 	jexit();
+		// }
+	}
 }
