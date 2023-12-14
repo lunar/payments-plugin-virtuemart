@@ -75,13 +75,20 @@ class plgVmPaymentLunar extends vmPSPlugin
 
 		$this->app = Factory::getApplication();
 		$this->testMode = !!$this->app->input->cookie->get('lunar_testmode'); // same with !!$_COOKIE['lunar_testmode']
+		$this->vmOrderModel = VmModel::getModel('orders');
 	}
 
 	private function init()
 	{
-		$this->cart = VirtueMartCart::getCart();
-		if (!isset($this->cart->cartPrices) or empty($this->cart->cartPrices)) {
-			$this->cart->prepareCartData();
+		if (!$this->app->isClient('administrator')) {
+			$this->cart = VirtueMartCart::getCart();
+			if (!isset($this->cart->cartPrices) || empty($this->cart->cartPrices)) {
+				$this->cart->prepareCartData();
+			}
+
+			$this->currencyId = $this->getCurrencyId();
+			$this->currencyCode = $this->getCurrencyCode();
+			$this->totalAmount = (string) $this->cart->cartPrices['billTotal'];
 		}
 
 		$this->apiClient = new ApiClient($this->method->api_key, null, $this->testMode);
@@ -90,14 +97,8 @@ class plgVmPaymentLunar extends vmPSPlugin
 
 		$this->maybeSetPaymentInfo();
 
-		$this->currencyId = $this->getCurrencyId();
-		$this->currencyCode = $this->getCurrencyCode();
-		$this->totalAmount = (string) $this->cart->cartPrices['billTotal'];
-
 		$emailCurrencyId = $this->getEmailCurrency($this->method);
 		$this->emailCurrency = shopFunctions::getCurrencyByID($emailCurrencyId, 'currency_code_3');
-
-		$this->vmOrderModel = VmModel::getModel('orders');
 	}
 
 	/**
@@ -109,14 +110,14 @@ class plgVmPaymentLunar extends vmPSPlugin
 			return $this->check = null;
 		}
 
-		$this->isMobielPay = self::MOBILEPAY_METHOD === $this->method->payment_method;
-		$this->paymentMethodCode = $this->isMobielPay ? self::MOBILEPAY_METHOD : self::CARD_METHOD;
-
-		$this->init();
-
 		if (!$this->selectedThisElement($this->method->payment_element)) {
 			return $this->check = false;
 		}
+
+		$this->init();
+
+		$this->isMobielPay = self::MOBILEPAY_METHOD === $this->method->payment_method;
+		$this->paymentMethodCode = $this->isMobielPay ? self::MOBILEPAY_METHOD : self::CARD_METHOD;
 
 		return true;
 	}
@@ -186,8 +187,6 @@ class plgVmPaymentLunar extends vmPSPlugin
 			$this->redirectBackWithNotification('Bad payment method');
 		}
 
-		// $this->init();
-
 		$paymentIntentId = $this->getPaymentIntentCookie();
 		if (empty($paymentIntentId)) {	
 			$this->redirectBackWithNotification('No payment intent id found.');
@@ -216,8 +215,8 @@ class plgVmPaymentLunar extends vmPSPlugin
 		
 		// } else {
 		
-			$order = $this->vmOrderModel->getOrder($this->cart->virtuemart_order_id);
-			$this->billingDetails = $order['details']['BT'];
+		// 	$order = $this->vmOrderModel->getOrder($this->cart->virtuemart_order_id);
+		// 	$this->billingDetails = $order['details']['BT'];
 		
 		// }
 
@@ -233,6 +232,9 @@ class plgVmPaymentLunar extends vmPSPlugin
 		// $this->cart->emptyCart();
 
 		// $this->setPaymentIntentCookie('', 1);
+
+		$order = $this->vmOrderModel->getOrder($this->cart->virtuemart_order_id);
+		$this->billingDetails = $order['details']['BT'];
 
 		$this->finalizeOrder($html);
 
@@ -463,6 +465,7 @@ class plgVmPaymentLunar extends vmPSPlugin
 	private function storeDbLunarTransaction($paymentIntentId)
 	{
 		$this->storePSPluginInternalData([
+			'payment_method'              => $this->paymentMethodCode,
 			'transaction_id'              => $paymentIntentId,
 			'payment_order_total'         => vmPSPlugin::getAmountValueInCurrency($this->totalAmount, $this->currencyId),
 			'payment_currency'            => $this->currencyCode,
