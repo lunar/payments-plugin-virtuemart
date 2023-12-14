@@ -48,7 +48,7 @@ class plgVmPaymentLunar extends vmPSPlugin
 	protected ?string $errorMessage = null;
 	protected string $intentIdKey = '_lunar_intent_id';
 	protected bool $testMode = false;
-	protected bool $isMobielPay = false;
+	protected bool $isMobilePay = false;
 
 
 	public function __construct(&$subject, $config) {
@@ -86,8 +86,6 @@ class plgVmPaymentLunar extends vmPSPlugin
 				$this->cart->prepareCartData();
 			}
 
-			$this->currencyId = $this->getCurrencyId();
-			$this->currencyCode = $this->getCurrencyCode();
 			$this->totalAmount = (string) $this->cart->cartPrices['billTotal'];
 		}
 
@@ -97,6 +95,8 @@ class plgVmPaymentLunar extends vmPSPlugin
 
 		$this->maybeSetPaymentInfo();
 
+		$this->currencyId = $this->getCurrencyId();
+		$this->currencyCode = $this->getCurrencyCode();
 		$emailCurrencyId = $this->getEmailCurrency($this->method);
 		$this->emailCurrency = shopFunctions::getCurrencyByID($emailCurrencyId, 'currency_code_3');
 	}
@@ -116,8 +116,8 @@ class plgVmPaymentLunar extends vmPSPlugin
 
 		$this->init();
 
-		$this->isMobielPay = self::MOBILEPAY_METHOD === $this->method->payment_method;
-		$this->paymentMethodCode = $this->isMobielPay ? self::MOBILEPAY_METHOD : self::CARD_METHOD;
+		$this->isMobilePay = self::MOBILEPAY_METHOD === $this->method->payment_method;
+		$this->paymentMethodCode = $this->isMobilePay ? self::MOBILEPAY_METHOD : self::CARD_METHOD;
 
 		return true;
 	}
@@ -348,7 +348,7 @@ class plgVmPaymentLunar extends vmPSPlugin
             'preferredPaymentMethod' => $this->paymentMethodCode,
         ];
 
-        if ($this->isMobielPay) {
+        if ($this->isMobilePay) {
             $this->args['mobilePayConfiguration'] = [
                 'configurationID' => $this->method->configuration_id,
                 'logo' => $this->method->logo_url,
@@ -610,7 +610,7 @@ class plgVmPaymentLunar extends vmPSPlugin
 			$cards = $plugin->accepted_cards;
 		}
 		
-		if ($this->isMobielPay) {
+		if (self::MOBILEPAY_METHOD === $plugin->payment_method) {
 			$logoPath = JURI::root().'plugins/vmpayment/lunar/images/mobilepay-logo.png'; // used PNG files because TCPDF doesn't like svg 
 			$html .= sprintf('<img src="%s" alt="logo" />', $logoPath);
 		} else {
