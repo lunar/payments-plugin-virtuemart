@@ -661,7 +661,8 @@ class plgVmPaymentLunar extends vmPSPlugin
 	/**
 	 * Update lunar on update status
 	 */
-
+	public function plgVmOnUpdateOrderPayment($order, $old_order_status)
+	{
 		if (!$this->checkMethodIsSelected($order->virtuemart_paymentmethod_id)) {
 			return $this->check;
 		}
