@@ -508,44 +508,6 @@ class plgVmPaymentLunar extends vmPSPlugin
 		$paymentCurrencyId = $this->getCurrencyId();
 	}
 
-
-	/**  */
-	private function maybeAddAdminScript()
-	{
-		if (!$this->app->isClient('administrator')) {
-			return;
-		}
-
-		Factory::getDocument()->addScriptDeclaration('
-			jQuery(document).ready(function( $ ) {
-				
-				let radio0 = jQuery("#params_payment_method0");
-				let radio1 = jQuery("#params_payment_method1");
-
-				if (radio1.is(":checked")) {
-					manageConfigIdField(radio1.val());
-				} else {
-					manageConfigIdField(radio0.val());
-				}
-								
-				radio0.on("change", function() { manageConfigIdField($(this).val()) });
-				radio1.on("change", function() { manageConfigIdField($(this).val()) });
-
-				function manageConfigIdField(methodCode) {
-					let configIdField = $("#params_configuration_id").closest(".control-group");
-					let accesptedCardsField = $("#params_accepted_cards").closest(".control-group");
-					if ("mobilePay" === methodCode) {
-						configIdField.show();
-						accesptedCardsField.hide();
-					} else {
-						configIdField.hide();
-						accesptedCardsField.show();
-					}
-				}
-			});
-		');
-	}
-
 	/**
 	 * @param $orderDetails
 	 * @param $data
@@ -778,6 +740,43 @@ class plgVmPaymentLunar extends vmPSPlugin
         ];
     }
 		
+	/**  */
+	private function maybeAddAdminScript()
+	{
+		if (!$this->app->isClient('administrator')) {
+			return;
+		}
+
+		Factory::getDocument()->addScriptDeclaration('
+			jQuery(document).ready(function( $ ) {
+				
+				let radio0 = jQuery("#params_payment_method0");
+				let radio1 = jQuery("#params_payment_method1");
+
+				if (radio1.is(":checked")) {
+					manageConfigIdField(radio1.val());
+				} else {
+					manageConfigIdField(radio0.val());
+				}
+								
+				radio0.on("change", function() { manageConfigIdField($(this).val()) });
+				radio1.on("change", function() { manageConfigIdField($(this).val()) });
+
+				function manageConfigIdField(methodCode) {
+					let configIdField = $("#params_configuration_id").closest(".control-group");
+					let accesptedCardsField = $("#params_accepted_cards").closest(".control-group");
+					if ("mobilePay" === methodCode) {
+						configIdField.show();
+						accesptedCardsField.hide();
+					} else {
+						configIdField.hide();
+						accesptedCardsField.show();
+					}
+				}
+			});
+		');
+	}
+
 	/**
 	 * Used for ajax actions
 	 */
