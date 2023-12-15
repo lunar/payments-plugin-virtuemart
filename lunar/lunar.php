@@ -80,25 +80,27 @@ class plgVmPaymentLunar extends vmPSPlugin
 
 	private function init()
 	{
+		self::getPaymentCurrency($this->method);
+
+		$this->currencyId = $this->getCurrencyId();
+
 		if (!$this->app->isClient('administrator')) {
 			$this->cart = VirtueMartCart::getCart();
 			if (!isset($this->cart->cartPrices) || empty($this->cart->cartPrices)) {
 				$this->cart->prepareCartData();
 			}
 
-			$this->totalAmount = (string) $this->cart->cartPrices['billTotal'];
+			$cartTotal = $this->cart->cartPrices['billTotal'];
+			$this->totalAmount = (string) self::getAmountValueInCurrency($cartTotal, $this->currencyId);
 		}
-
-		$this->apiClient = new ApiClient($this->method->api_key, null, $this->testMode);
 		
-		self::getPaymentCurrency($this->method);
-
 		$this->maybeSetPaymentInfo();
-
-		$this->currencyId = $this->getCurrencyId();
+		
 		$this->currencyCode = $this->getCurrencyCode();
 		$emailCurrencyId = $this->getEmailCurrency($this->method);
 		$this->emailCurrency = shopFunctions::getCurrencyByID($emailCurrencyId, 'currency_code_3');
+
+		$this->apiClient = new ApiClient($this->method->api_key, null, $this->testMode);
 	}
 
 	/**
@@ -136,7 +138,7 @@ class plgVmPaymentLunar extends vmPSPlugin
 		}
 
 		$this->setArgs($this->billingDetails->virtuemart_order_id);
-		
+
 		$paymentIntentId = $this->createPaymentIntent();
 
 		if ($this->errorMessage) {
@@ -228,10 +230,12 @@ class plgVmPaymentLunar extends vmPSPlugin
 			$date = Factory::getDate();
 			$today = $date->toSQL();
 			$order['paid_on'] = $today;
-			$order['paid'] = $this->totalAmount;
+			$order['paid'] = $this->billingDetails->order_total; // for order, we save Total in vendor (not payment) currency
 		}
 
 		$this->vmOrderModel->updateStatusForOneOrder($this->billingDetails->virtuemart_order_id, $order, true);
+
+		$this->totalAmount = $this->billingDetails->order_total;
 
 		$html = $this->renderByLayout('order_done', [
 			'order_number' => $this->billingDetails->order_number,
@@ -436,7 +440,7 @@ class plgVmPaymentLunar extends vmPSPlugin
 		$this->storePSPluginInternalData([
 			'payment_method'              => $this->paymentMethodCode,
 			'transaction_id'              => $paymentIntentId,
-			'payment_order_total'         => vmPSPlugin::getAmountValueInCurrency($this->totalAmount, $this->currencyId),
+			'payment_order_total'         => $this->totalAmount,
 			'payment_currency'            => $this->currencyCode,
 			'email_currency'              => $this->emailCurrency,
 			'order_number'                => $this->billingDetails->order_number,
@@ -498,6 +502,7 @@ class plgVmPaymentLunar extends vmPSPlugin
 		if (!$this->checkMethodIsSelected($virtuemart_paymentmethod_id)) {
 			return $this->check;
 		}
+
 		self::getPaymentCurrency($this->method);
 
 		$paymentCurrencyId = $this->getCurrencyId();
@@ -670,8 +675,8 @@ class plgVmPaymentLunar extends vmPSPlugin
 		}
 
 		$paymentIntentId = $lunarTransaction->transaction_id;
-		$this->currencyCode = $this->getCurrencyCode();
-		$this->totalAmount = $order->order_total;
+		$this->currencyCode = shopFunctions::getCurrencyByID($order->payment_currency_id, 'currency_code_3');
+		$this->totalAmount = $lunarTransaction->payment_order_total;
 
 		try {
 			$this->fetchApiTransaction($paymentIntentId);
