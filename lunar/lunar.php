@@ -198,40 +198,9 @@ class plgVmPaymentLunar extends vmPSPlugin
 			$this->redirectBackWithNotification($e->getMessage());
 		}
 
-		// if ('before' == $this->method->checkout_mode) {
-		// 	$orderId = $this->vmOrderModel->createOrderFromCart($this->cart);
-		// 	/** @var VirtueMartModelOrders $order */
-		// 	$order = $this->vmOrderModel->getOrder($orderId);
-			
-		// 	if (!isset($order['details'])) {
-		// 		$this->redirectBackWithNotification('Invalid order');
-		// 	}
-
-		// 	$this->billingDetails = $order['details']['BT'];
-			
-		// 	$this->storeDbLunarTransaction($paymentIntentId);
-
-		//  $this->finalizeOrder($html);
-		
-		// } else {
-		
-		// 	$order = $this->vmOrderModel->getOrder($this->cart->virtuemart_order_id);
-		// 	$this->billingDetails = $order['details']['BT'];
-		
-		// }
-
-		// $html = $this->renderByLayout('order_done', [
-		// 	'method' => $this->method,
-		// 	// 'cart' => $this->cart,
-		// 	'order_number' => $this->billingDetails->order_number,
-		// 	'payment_name' => $this->renderPluginName($this->method),
-		// 	'displayTotalInPaymentCurrency' => $this->getPriceWithCurrency(),
-		// 	'orderlink' => $this->getOrderLink(),
-		// ]);
-
-		// $this->cart->emptyCart();
-
-		// $this->setPaymentIntentCookie('', 1);
+		/**
+		 * placeholder for before order flow code (find it to the bottom of this file)
+		 */ 
 
 		$order = $this->vmOrderModel->getOrder($this->cart->virtuemart_order_id);
 		$this->billingDetails = $order['details']['BT'];
@@ -831,4 +800,45 @@ class plgVmPaymentLunar extends vmPSPlugin
 		// 	jexit();
 		// }
 	}
+
+
+	/**
+	 * Before order flow code - to be inserted (&adjusted) 
+	 * to the placeholder from plgVmOnPaymentResponseReceived method
+	 * 
+		// if ('before' == $this->method->checkout_mode) {
+		// 	$orderId = $this->vmOrderModel->createOrderFromCart($this->cart);
+		// 	// @var VirtueMartModelOrders $order
+		// 	$order = $this->vmOrderModel->getOrder($orderId);
+			
+		// 	if (!isset($order['details'])) {
+		// 		$this->redirectBackWithNotification('Invalid order');
+		// 	}
+
+		// 	$this->billingDetails = $order['details']['BT'];
+			
+		// 	$this->storeDbLunarTransaction($paymentIntentId);
+
+		//  $this->finalizeOrder($html);
+		
+		// } else {
+		
+		// 	$order = $this->vmOrderModel->getOrder($this->cart->virtuemart_order_id);
+		// 	$this->billingDetails = $order['details']['BT'];
+		
+		// }
+
+		// $html = $this->renderByLayout('order_done', [
+		// 	'method' => $this->method,
+		// 	// 'cart' => $this->cart,
+		// 	'order_number' => $this->billingDetails->order_number,
+		// 	'payment_name' => $this->renderPluginName($this->method),
+		// 	'displayTotalInPaymentCurrency' => $this->getPriceWithCurrency(),
+		// 	'orderlink' => $this->getOrderLink(),
+		// ]);
+
+		// $this->cart->emptyCart();
+
+		// $this->setPaymentIntentCookie('', 1);
+	 */
 }
