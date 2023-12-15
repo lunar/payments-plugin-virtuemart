@@ -517,17 +517,24 @@ class plgVmPaymentLunar extends vmPSPlugin
 				let radio0 = jQuery("#params_payment_method0");
 				let radio1 = jQuery("#params_payment_method1");
 
-				radio1.is(":checked") ? manageConfigIdField(radio1.val()) : manageConfigIdField(radio0.val());
+				if (radio1.is(":checked")) {
+					manageConfigIdField(radio1.val());
+				} else {
+					manageConfigIdField(radio0.val());
+				}
 								
 				radio0.on("change", function() { manageConfigIdField($(this).val()) });
 				radio1.on("change", function() { manageConfigIdField($(this).val()) });
 
 				function manageConfigIdField(methodCode) {
-					let element = $("#params_configuration_id").closest(".control-group");
+					let configIdField = $("#params_configuration_id").closest(".control-group");
+					let accesptedCardsField = $("#params_accepted_cards").closest(".control-group");
 					if ("mobilePay" === methodCode) {
-						element.show() 
+						configIdField.show();
+						accesptedCardsField.hide();
 					} else {
-						element.hide();
+						configIdField.hide();
+						accesptedCardsField.show();
 					}
 				}
 			});
