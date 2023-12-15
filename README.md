@@ -18,6 +18,7 @@ Once you have installed VirtueMart on your Joomla setup, follow these simple ste
   1. Upload the plugin zip trough the 'Extensions' screen in Joomla.
   1. Activate the plugin through the 'Extensions' screen in Joomla.
   1. Under VirtueMart payment methods create a new payment method and select Lunar.
+  1. In the configuration tab, choose the payment method.
   1. Insert the app key and your public key in the settings for the Lunar payment gateway you just created
 
 
