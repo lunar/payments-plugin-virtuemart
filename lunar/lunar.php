@@ -252,7 +252,7 @@ class plgVmPaymentLunar extends vmPSPlugin
 	{
 		/** @var CurrencyDisplay $currencyInstance */
 		$currencyInstance = CurrencyDisplay::getInstance($this->currencyId, $this->billingDetails->virtuemart_vendor_id);
-		return $this->totalAmount . ' ' . $currencyInstance->getSymbol();
+		return $currencyInstance->priceDisplay($this->totalAmount, $this->currencyId);
 	}
 
 	/**
