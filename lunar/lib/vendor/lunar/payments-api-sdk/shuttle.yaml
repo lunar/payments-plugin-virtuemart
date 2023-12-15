@@ -1,0 +1,6 @@
+plan: false
+
+vars:
+  service: payments-api-sdk
+  squad: juno
+  domain: merchant-payments

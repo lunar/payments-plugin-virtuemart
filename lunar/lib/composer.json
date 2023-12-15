@@ -1,0 +1,10 @@
+{
+  "autoload": {
+    "psr-4": {
+      "Lunar\\Payment\\": ""
+    }
+  },
+  "require": {
+    "lunar/payments-api-sdk": "dev-master"
+  }
+}

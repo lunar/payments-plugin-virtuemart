@@ -1,11 +1,11 @@
 {
-  "name": "lunar/plugin-virtuemart",
-  "description": "Lunar payment gateway for Virtuemart",
+  "name": "lunar/payments-plugin-virtuemart",
+  "description": "Lunar Online Payments for Joomla VirtueMart",
   "license": "MIT",
   "authors": [
     {
-      "name": "Ionut Calara",
-      "email": "ionut.calara@gmail.com"
+      "name": "Lunar",
+      "email": "support@lunar.app"
     }
   ]
 }
