@@ -87,7 +87,15 @@
                     <option value="vendor">VMPAYMENT_LUNAR_EMAIL_CURRENCY_VENDOR</option>
                     <option value="payment">VMPAYMENT_LUNAR_EMAIL_CURRENCY_PAYMENT</option>
                 </field>
+                
+                <field type="list" name="accepted_cards" label="VMPAYMENT_LUNAR_ACCEPTED_CARDS" default="" multiple="multiple">
+                    <option value="mastercard">MasterCard</option>
+                    <option value="maestro">Maestro</option>
+                    <option value="visa">Visa</option>
+                    <option value="visaelectron">Visa Electron</option>
+                </field>
 
+                <field type="vmtitle" default="VMPAYMENT_LUNAR_ORDER_STATES" description=""/>
                 <!-- <field name="status_pending" type="vmorderstate" scope="com_virtuemart" default="U"
                        label="VMPAYMENT_LUNAR_STATUS_PENDING" description="VMPAYMENT_LUNAR_STATUS_PENDING_TIP"/> -->
                 
@@ -111,13 +119,7 @@
                 
                 <field name="status_denied" type="vmorderstate" scope="com_virtuemart" default="D"
                        label="COM_VIRTUEMART_ORDER_STATUS_DENIED" description="COM_VIRTUEMART_ORDER_STATUS_DENIED_TIP"/>
-                
-                <field type="list" name="accepted_cards" label="VMPAYMENT_LUNAR_ACCEPTED_CARDS" default="" multiple="multiple">
-                    <option value="mastercard">MasterCard</option>
-                    <option value="maestro">Maestro</option>
-                    <option value="visa">Visa</option>
-                    <option value="visaelectron">Visa Electron</option>
-                </field>
+
 
                 <!-- <field name="mastercard" type="filelist" hide_none="true" hide_default="true" directory='plugins/vmpayment/lunar/images/' label="VMPAYMENT_LUNAR_MASTERCARD_LOGO" description=""
                        default="mastercard.svg"/>
@@ -131,7 +133,7 @@
             </fieldset>
 
 
-			<fieldset name="fee">
+            <fieldset name="fee">
                 <field type="vmtitle" default="VMPAYMENT_LUNAR_OPTIONAL_PARAMS" description=""/>
 
                 <field name="cost_per_transaction" type="text" label="VMPAYMENT_LUNAR_COST_PER_TRANSACTION"
